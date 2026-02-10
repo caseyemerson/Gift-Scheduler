@@ -1,0 +1,156 @@
+const express = require('express');
+const { v4: uuidv4 } = require('uuid');
+const { getDb } = require('../database');
+const { logAudit } = require('../audit');
+
+const router = express.Router();
+
+// List events with optional filters
+router.get('/', (req, res) => {
+  const db = getDb();
+  let query = `
+    SELECT e.*, c.name as contact_name, c.relationship
+    FROM events e
+    JOIN contacts c ON e.contact_id = c.id
+    WHERE 1=1
+  `;
+  const params = [];
+
+  if (req.query.status) {
+    query += ' AND e.status = ?';
+    params.push(req.query.status);
+  }
+  if (req.query.type) {
+    query += ' AND e.type = ?';
+    params.push(req.query.type);
+  }
+  if (req.query.upcoming === 'true') {
+    query += " AND e.date >= date('now')";
+  }
+
+  query += ' ORDER BY e.date ASC';
+
+  if (req.query.limit) {
+    query += ' LIMIT ?';
+    params.push(parseInt(req.query.limit));
+  }
+
+  const events = db.prepare(query).all(...params);
+  res.json(events);
+});
+
+// Get single event with recommendations and messages
+router.get('/:id', (req, res) => {
+  const db = getDb();
+  const event = db.prepare(`
+    SELECT e.*, c.name as contact_name, c.relationship, c.preferences, c.constraints
+    FROM events e
+    JOIN contacts c ON e.contact_id = c.id
+    WHERE e.id = ?
+  `).get(req.params.id);
+
+  if (!event) return res.status(404).json({ error: 'Event not found' });
+
+  const recommendations = db.prepare(
+    'SELECT * FROM gift_recommendations WHERE event_id = ? ORDER BY price ASC'
+  ).all(req.params.id);
+
+  const cardMessages = db.prepare(
+    'SELECT * FROM card_messages WHERE event_id = ? ORDER BY created_at DESC'
+  ).all(req.params.id);
+
+  const approvals = db.prepare(
+    'SELECT * FROM approvals WHERE event_id = ? ORDER BY created_at DESC'
+  ).all(req.params.id);
+
+  const orders = db.prepare(
+    'SELECT * FROM orders WHERE event_id = ? ORDER BY created_at DESC'
+  ).all(req.params.id);
+
+  res.json({
+    ...event,
+    preferences: JSON.parse(event.preferences || '{}'),
+    constraints: JSON.parse(event.constraints || '{}'),
+    recommendations,
+    cardMessages,
+    approvals,
+    orders,
+  });
+});
+
+// Create event
+router.post('/', (req, res) => {
+  const db = getDb();
+  const { contact_id, type, name, date, recurring, lead_time_days } = req.body;
+
+  if (!contact_id || !type || !name || !date) {
+    return res.status(400).json({ error: 'contact_id, type, name, and date are required' });
+  }
+
+  const contact = db.prepare('SELECT * FROM contacts WHERE id = ?').get(contact_id);
+  if (!contact) return res.status(400).json({ error: 'Contact not found' });
+
+  const id = uuidv4();
+  db.prepare(`
+    INSERT INTO events (id, contact_id, type, name, date, recurring, lead_time_days)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(id, contact_id, type, name, date, recurring !== undefined ? recurring : 1, lead_time_days || 14);
+
+  logAudit('create', 'event', id, { contact_id, type, name, date });
+
+  const event = db.prepare(`
+    SELECT e.*, c.name as contact_name
+    FROM events e JOIN contacts c ON e.contact_id = c.id
+    WHERE e.id = ?
+  `).get(id);
+  res.status(201).json(event);
+});
+
+// Update event
+router.put('/:id', (req, res) => {
+  const db = getDb();
+  const existing = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Event not found' });
+
+  const { type, name, date, recurring, lead_time_days, status } = req.body;
+
+  db.prepare(`
+    UPDATE events SET
+      type = COALESCE(?, type),
+      name = COALESCE(?, name),
+      date = COALESCE(?, date),
+      recurring = COALESCE(?, recurring),
+      lead_time_days = COALESCE(?, lead_time_days),
+      status = COALESCE(?, status),
+      updated_at = datetime('now')
+    WHERE id = ?
+  `).run(
+    type || null, name || null, date || null,
+    recurring !== undefined ? recurring : null,
+    lead_time_days || null, status || null,
+    req.params.id
+  );
+
+  logAudit('update', 'event', req.params.id, { changes: req.body });
+
+  const updated = db.prepare(`
+    SELECT e.*, c.name as contact_name
+    FROM events e JOIN contacts c ON e.contact_id = c.id
+    WHERE e.id = ?
+  `).get(req.params.id);
+  res.json(updated);
+});
+
+// Delete event
+router.delete('/:id', (req, res) => {
+  const db = getDb();
+  const existing = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Event not found' });
+
+  db.prepare('DELETE FROM events WHERE id = ?').run(req.params.id);
+  logAudit('delete', 'event', req.params.id, { name: existing.name });
+
+  res.json({ message: 'Event deleted' });
+});
+
+module.exports = router;
