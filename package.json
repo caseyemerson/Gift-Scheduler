@@ -1,0 +1,19 @@
+{
+  "name": "gift-scheduler",
+  "version": "1.0.0",
+  "description": "Gift and Card Automation Assistant - reliably selects, prepares, and sends appropriate gifts and cards",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "cd server && node --watch src/index.js",
+    "dev:client": "cd client && npx vite",
+    "build": "cd client && npx vite build",
+    "start": "cd server && node src/index.js",
+    "test": "cd server && node --experimental-vm-modules node_modules/.bin/jest --forceExit",
+    "lint": "eslint server/src client/src"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
