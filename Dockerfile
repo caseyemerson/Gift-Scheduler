@@ -10,9 +10,15 @@ RUN npm run build
 FROM node:18-alpine AS production
 WORKDIR /app
 
+# Install build tools needed for better-sqlite3 native compilation
+RUN apk add --no-cache python3 make g++
+
 # Install server dependencies
 COPY server/package.json server/package-lock.json* ./server/
 RUN cd server && npm install --omit=dev
+
+# Remove build tools after install to keep image small
+RUN apk del python3 make g++
 
 # Copy server source
 COPY server/src/ ./server/src/
