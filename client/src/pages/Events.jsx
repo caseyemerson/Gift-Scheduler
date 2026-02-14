@@ -57,6 +57,20 @@ export default function Events() {
     }
   }
 
+  // Auto-fill date from contact's birthday/anniversary when type and contact change
+  function handleContactOrTypeChange(newContactId, newType) {
+    const updated = { ...form, contact_id: newContactId, type: newType };
+    const contact = contacts.find(c => c.id === newContactId);
+    if (contact) {
+      if (newType === 'birthday' && contact.birthday) {
+        updated.date = contact.birthday;
+      } else if (newType === 'anniversary' && contact.anniversary) {
+        updated.date = contact.anniversary;
+      }
+    }
+    setForm(updated);
+  }
+
   const daysUntil = (dateStr) => {
     const diff = new Date(dateStr) - new Date();
     return Math.ceil(diff / (1000 * 60 * 60 * 24));
@@ -80,7 +94,7 @@ export default function Events() {
             <div>
               <label className="label">Contact *</label>
               <select className="input" value={form.contact_id}
-                onChange={e => { setForm({...form, contact_id: e.target.value}); }} required>
+                onChange={e => handleContactOrTypeChange(e.target.value, form.type)} required>
                 <option value="">Select contact...</option>
                 {contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
@@ -88,7 +102,7 @@ export default function Events() {
             <div>
               <label className="label">Type *</label>
               <select className="input" value={form.type}
-                onChange={e => setForm({...form, type: e.target.value})}>
+                onChange={e => handleContactOrTypeChange(form.contact_id, e.target.value)}>
                 <option value="birthday">Birthday</option>
                 <option value="anniversary">Anniversary</option>
                 <option value="holiday">Holiday</option>
@@ -129,7 +143,7 @@ export default function Events() {
         {['upcoming', 'all', 'in_progress', 'completed', 'missed'].map(f => (
           <button key={f} onClick={() => setFilter(f)}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              filter === f ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              filter === f ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
             }`}>
             {f === 'in_progress' ? 'In Progress' : f.charAt(0).toUpperCase() + f.slice(1)}
           </button>
@@ -138,7 +152,7 @@ export default function Events() {
 
       {events.length === 0 ? (
         <div className="card text-center py-12">
-          <p className="text-gray-500">No events found. Add your first event to get started.</p>
+          <p className="text-gray-500 dark:text-gray-400">No events found. Add your first event to get started.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -151,7 +165,7 @@ export default function Events() {
                   <EventTypeIcon type={event.type} />
                   <div>
                     <h3 className="font-semibold">{event.name}</h3>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
                       {event.contact_name} &middot; {new Date(event.date).toLocaleDateString()}
                       {event.recurring ? ' (recurring)' : ''}
                     </p>
@@ -160,7 +174,7 @@ export default function Events() {
                 <div className="text-right flex items-center gap-3">
                   <StatusBadge status={event.status} />
                   {days >= 0 && (
-                    <span className={`text-sm font-medium ${days <= 7 ? 'text-red-600' : days <= 14 ? 'text-amber-600' : 'text-gray-500'}`}>
+                    <span className={`text-sm font-medium ${days <= 7 ? 'text-red-600' : days <= 14 ? 'text-amber-600' : 'text-gray-500 dark:text-gray-400'}`}>
                       {days}d
                     </span>
                   )}
@@ -176,10 +190,10 @@ export default function Events() {
 
 function EventTypeIcon({ type }) {
   const configs = {
-    birthday: { bg: 'bg-pink-100', emoji: 'text-pink-600' },
-    anniversary: { bg: 'bg-red-100', emoji: 'text-red-600' },
-    holiday: { bg: 'bg-green-100', emoji: 'text-green-600' },
-    other: { bg: 'bg-gray-100', emoji: 'text-gray-600' },
+    birthday: { bg: 'bg-pink-100 dark:bg-pink-900/30', emoji: 'text-pink-600 dark:text-pink-400' },
+    anniversary: { bg: 'bg-red-100 dark:bg-red-900/30', emoji: 'text-red-600 dark:text-red-400' },
+    holiday: { bg: 'bg-green-100 dark:bg-green-900/30', emoji: 'text-green-600 dark:text-green-400' },
+    other: { bg: 'bg-gray-100 dark:bg-gray-700', emoji: 'text-gray-600 dark:text-gray-400' },
   };
   const labels = { birthday: 'B', anniversary: 'A', holiday: 'H', other: 'O' };
   const config = configs[type] || configs.other;

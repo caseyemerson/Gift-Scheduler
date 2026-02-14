@@ -61,7 +61,7 @@ export default function App() {
       )}
 
       {/* Mobile header */}
-      <div className={`md:hidden flex items-center justify-between bg-white border-b px-4 py-3 ${emergencyStop ? 'mt-10' : ''}`}>
+      <div className={`md:hidden flex items-center justify-between bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 ${emergencyStop ? 'mt-10' : ''}`}>
         <h1 className="text-lg font-bold text-primary-700">Gift Scheduler</h1>
         <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2">
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -72,15 +72,15 @@ export default function App() {
       </div>
 
       {/* Sidebar */}
-      <nav className={`${mobileMenuOpen ? 'block' : 'hidden'} md:block w-full md:w-64 bg-white border-r border-gray-200 md:min-h-screen flex-shrink-0 ${emergencyStop ? 'md:pt-10' : ''}`}>
-        <div className="hidden md:flex items-center gap-3 px-6 py-5 border-b">
+      <nav className={`${mobileMenuOpen ? 'block' : 'hidden'} md:block w-full md:w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 md:min-h-screen flex-shrink-0 ${emergencyStop ? 'md:pt-10' : ''}`}>
+        <div className="hidden md:flex items-center gap-3 px-6 py-5 border-b border-gray-200 dark:border-gray-700">
           <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                 d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
             </svg>
           </div>
-          <span className="font-bold text-lg text-gray-900">Gift Scheduler</span>
+          <span className="font-bold text-lg text-gray-900 dark:text-gray-100">Gift Scheduler</span>
         </div>
         <div className="px-3 py-4 space-y-1">
           {NAV_ITEMS.map((item) => {
@@ -92,8 +92,8 @@ export default function App() {
                 to={item.path}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   isActive
-                    ? 'bg-primary-50 text-primary-700'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                    ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200'
                 }`}
               >
                 <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">

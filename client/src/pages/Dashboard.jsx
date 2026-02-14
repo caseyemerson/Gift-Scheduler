@@ -30,7 +30,7 @@ export default function Dashboard() {
   }
 
   if (loading) return <LoadingSpinner />;
-  if (!data) return <div className="text-center py-12 text-gray-500">Failed to load dashboard</div>;
+  if (!data) return <div className="text-center py-12 text-gray-500 dark:text-gray-400">Failed to load dashboard</div>;
 
   const daysUntil = (dateStr) => {
     const diff = new Date(dateStr) - new Date();
@@ -39,7 +39,7 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Dashboard</h1>
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -56,10 +56,10 @@ export default function Dashboard() {
           <div className="space-y-2">
             {data.eventsNeedingAction.map(event => (
               <Link key={event.id} to={`/events/${event.id}`}
-                className="flex items-center justify-between p-3 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors">
+                className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors">
                 <div>
                   <span className="font-medium">{event.name}</span>
-                  <span className="text-gray-500 ml-2">for {event.contact_name}</span>
+                  <span className="text-gray-500 dark:text-gray-400 ml-2">for {event.contact_name}</span>
                 </div>
                 <div className="text-sm">
                   <span className={`font-medium ${daysUntil(event.date) <= 7 ? 'text-red-600' : 'text-amber-600'}`}>
@@ -80,22 +80,22 @@ export default function Dashboard() {
             <Link to="/events" className="text-sm text-primary-600 hover:text-primary-700">View all</Link>
           </div>
           {data.upcomingEvents.length === 0 ? (
-            <p className="text-gray-500 text-sm">No upcoming events</p>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">No upcoming events</p>
           ) : (
             <div className="space-y-3">
               {data.upcomingEvents.slice(0, 5).map(event => (
                 <Link key={event.id} to={`/events/${event.id}`}
-                  className="flex items-center justify-between py-2 hover:bg-gray-50 rounded px-2 -mx-2 transition-colors">
+                  className="flex items-center justify-between py-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded px-2 -mx-2 transition-colors">
                   <div className="flex items-center gap-3">
                     <EventIcon type={event.type} />
                     <div>
                       <div className="font-medium text-sm">{event.name}</div>
-                      <div className="text-xs text-gray-500">{event.contact_name}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">{event.contact_name}</div>
                     </div>
                   </div>
                   <div className="text-right">
                     <div className="text-sm">{new Date(event.date).toLocaleDateString()}</div>
-                    <div className={`text-xs ${daysUntil(event.date) <= 7 ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                    <div className={`text-xs ${daysUntil(event.date) <= 7 ? 'text-red-600 font-medium' : 'text-gray-500 dark:text-gray-400'}`}>
                       {daysUntil(event.date)}d
                     </div>
                   </div>
@@ -112,14 +112,14 @@ export default function Dashboard() {
             <Link to="/orders" className="text-sm text-primary-600 hover:text-primary-700">View all</Link>
           </div>
           {data.activeOrders.length === 0 ? (
-            <p className="text-gray-500 text-sm">No active orders</p>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">No active orders</p>
           ) : (
             <div className="space-y-3">
               {data.activeOrders.map(order => (
                 <div key={order.id} className="flex items-center justify-between py-2">
                   <div>
                     <div className="font-medium text-sm">{order.gift_name}</div>
-                    <div className="text-xs text-gray-500">for {order.contact_name}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">for {order.contact_name}</div>
                   </div>
                   <StatusBadge status={order.status} />
                 </div>
@@ -140,14 +140,14 @@ export default function Dashboard() {
           )}
         </div>
         {notifications.length === 0 ? (
-          <p className="text-gray-500 text-sm">No notifications</p>
+          <p className="text-gray-500 dark:text-gray-400 text-sm">No notifications</p>
         ) : (
           <div className="space-y-2">
             {notifications.map(n => (
-              <div key={n.id} className={`flex items-start gap-3 p-3 rounded-lg text-sm ${n.read ? 'bg-gray-50' : 'bg-blue-50'}`}>
+              <div key={n.id} className={`flex items-start gap-3 p-3 rounded-lg text-sm ${n.read ? 'bg-gray-50 dark:bg-gray-700/50' : 'bg-blue-50 dark:bg-blue-900/20'}`}>
                 <NotificationIcon type={n.type} />
                 <div className="flex-1">
-                  <p className={n.read ? 'text-gray-600' : 'text-gray-900 font-medium'}>{n.message}</p>
+                  <p className={n.read ? 'text-gray-600 dark:text-gray-400' : 'text-gray-900 dark:text-gray-100 font-medium'}>{n.message}</p>
                   <p className="text-xs text-gray-400 mt-1">{new Date(n.created_at).toLocaleString()}</p>
                 </div>
                 {!n.read && <div className="w-2 h-2 bg-blue-500 rounded-full mt-1.5 flex-shrink-0" />}
@@ -162,10 +162,10 @@ export default function Dashboard() {
 
 function StatCard({ label, value, color }) {
   const colors = {
-    blue: 'bg-blue-50 text-blue-700',
-    purple: 'bg-purple-50 text-purple-700',
-    orange: 'bg-orange-50 text-orange-700',
-    green: 'bg-green-50 text-green-700',
+    blue: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+    purple: 'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+    orange: 'bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+    green: 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300',
   };
   return (
     <div className={`rounded-xl p-4 ${colors[color]}`}>
@@ -177,10 +177,10 @@ function StatCard({ label, value, color }) {
 
 function EventIcon({ type }) {
   const icons = {
-    birthday: { bg: 'bg-pink-100', color: 'text-pink-600', d: 'M21 15.546c-.523 0-1.046.151-1.5.454a2.704 2.704 0 01-3 0 2.704 2.704 0 00-3 0 2.704 2.704 0 01-3 0 2.704 2.704 0 00-3 0 2.704 2.704 0 01-3 0A1.75 1.75 0 013 15.546V12a1 1 0 011-1h16a1 1 0 011 1v3.546zM12 3v4m-4-1l4 1m4-1l-4 1' },
-    anniversary: { bg: 'bg-red-100', color: 'text-red-600', d: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z' },
-    holiday: { bg: 'bg-green-100', color: 'text-green-600', d: 'M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z' },
-    other: { bg: 'bg-gray-100', color: 'text-gray-600', d: 'M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7' },
+    birthday: { bg: 'bg-pink-100 dark:bg-pink-900/30', color: 'text-pink-600 dark:text-pink-400', d: 'M21 15.546c-.523 0-1.046.151-1.5.454a2.704 2.704 0 01-3 0 2.704 2.704 0 00-3 0 2.704 2.704 0 01-3 0 2.704 2.704 0 00-3 0 2.704 2.704 0 01-3 0A1.75 1.75 0 013 15.546V12a1 1 0 011-1h16a1 1 0 011 1v3.546zM12 3v4m-4-1l4 1m4-1l-4 1' },
+    anniversary: { bg: 'bg-red-100 dark:bg-red-900/30', color: 'text-red-600 dark:text-red-400', d: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z' },
+    holiday: { bg: 'bg-green-100 dark:bg-green-900/30', color: 'text-green-600 dark:text-green-400', d: 'M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z' },
+    other: { bg: 'bg-gray-100 dark:bg-gray-700', color: 'text-gray-600 dark:text-gray-400', d: 'M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7' },
   };
   const icon = icons[type] || icons.other;
   return (

@@ -23,6 +23,8 @@ function initializeSchema(database) {
       email TEXT,
       phone TEXT,
       relationship TEXT NOT NULL,
+      birthday TEXT,
+      anniversary TEXT,
       preferences TEXT DEFAULT '{}',
       constraints TEXT DEFAULT '{}',
       notes TEXT DEFAULT '',
@@ -177,6 +179,9 @@ function initializeSchema(database) {
       ('default_lead_time_days', '14'),
       ('autonomy_global_level', 'manual');
 
+    -- Migration: add birthday and anniversary columns if they don't exist
+    -- SQLite doesn't support IF NOT EXISTS for ALTER TABLE, so we use a try approach in JS below
+
     CREATE INDEX IF NOT EXISTS idx_events_contact ON events(contact_id);
     CREATE INDEX IF NOT EXISTS idx_events_date ON events(date);
     CREATE INDEX IF NOT EXISTS idx_events_status ON events(status);
@@ -185,6 +190,10 @@ function initializeSchema(database) {
     CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity_type, entity_id);
     CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
   `);
+
+  // Migration: add birthday and anniversary columns to existing contacts table
+  try { database.exec('ALTER TABLE contacts ADD COLUMN birthday TEXT'); } catch {}
+  try { database.exec('ALTER TABLE contacts ADD COLUMN anniversary TEXT'); } catch {}
 }
 
 function closeDb() {
