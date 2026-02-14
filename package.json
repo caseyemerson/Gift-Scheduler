@@ -7,7 +7,7 @@
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "cd server && node --watch src/index.js",
     "dev:client": "cd client && npx vite",
-    "build": "cd client && npx vite build",
+    "build": "cd client && npm install --include=dev && npm run build",
     "start": "cd server && node src/index.js",
     "test": "cd server && node --experimental-vm-modules node_modules/.bin/jest --forceExit",
     "lint": "eslint server/src client/src"
