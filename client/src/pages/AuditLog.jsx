@@ -32,52 +32,52 @@ export default function AuditLog() {
       <div className="flex gap-2 mb-4 flex-wrap">
         <button onClick={() => setFilter('')}
           className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-            !filter ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            !filter ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
           }`}>All</button>
         {entityTypes.map(type => (
           <button key={type} onClick={() => setFilter(type)}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              filter === type ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              filter === type ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
             }`}>{type.replace('_', ' ')}</button>
         ))}
       </div>
 
       {logs.length === 0 ? (
         <div className="card text-center py-12">
-          <p className="text-gray-500">No audit entries found.</p>
+          <p className="text-gray-500 dark:text-gray-400">No audit entries found.</p>
         </div>
       ) : (
         <div className="card overflow-hidden p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b">
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Timestamp</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Action</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Entity</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Details</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">By</th>
+                <tr className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+                  <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-300">Timestamp</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-300">Action</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-300">Entity</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-300">Details</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-300">By</th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {logs.map(log => (
-                  <tr key={log.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                  <tr key={log.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">
                       {new Date(log.created_at).toLocaleString()}
                     </td>
                     <td className="px-4 py-3">
                       <ActionBadge action={log.action} />
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-gray-600">{log.entity_type}</span>
+                      <span className="text-gray-600 dark:text-gray-400">{log.entity_type}</span>
                       {log.entity_id && (
-                        <span className="text-gray-400 text-xs ml-1 font-mono">{log.entity_id.slice(0, 8)}</span>
+                        <span className="text-gray-400 dark:text-gray-500 text-xs ml-1 font-mono">{log.entity_id.slice(0, 8)}</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 max-w-xs truncate text-gray-500">
+                    <td className="px-4 py-3 max-w-xs truncate text-gray-500 dark:text-gray-400">
                       {formatDetails(log.details)}
                     </td>
-                    <td className="px-4 py-3 text-gray-500">{log.performed_by}</td>
+                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{log.performed_by}</td>
                   </tr>
                 ))}
               </tbody>

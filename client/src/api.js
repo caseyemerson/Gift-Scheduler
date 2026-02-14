@@ -31,6 +31,7 @@ export const api = {
   createContact: (data) => request('/contacts', { method: 'POST', body: data }),
   updateContact: (id, data) => request(`/contacts/${id}`, { method: 'PUT', body: data }),
   deleteContact: (id) => request(`/contacts/${id}`, { method: 'DELETE' }),
+  importContacts: (contacts) => request('/contacts/import', { method: 'POST', body: { contacts } }),
 
   // Events
   getEvents: (params = {}) => {

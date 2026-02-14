@@ -44,7 +44,7 @@ router.get('/:id', (req, res) => {
 // Create contact
 router.post('/', (req, res) => {
   const db = getDb();
-  const { name, email, phone, relationship, preferences, constraints, notes } = req.body;
+  const { name, email, phone, relationship, birthday, anniversary, preferences, constraints, notes } = req.body;
 
   if (!name || !relationship) {
     return res.status(400).json({ error: 'Name and relationship are required' });
@@ -52,9 +52,9 @@ router.post('/', (req, res) => {
 
   const id = uuidv4();
   db.prepare(`
-    INSERT INTO contacts (id, name, email, phone, relationship, preferences, constraints, notes)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, name, email || null, phone || null, relationship,
+    INSERT INTO contacts (id, name, email, phone, relationship, birthday, anniversary, preferences, constraints, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, name, email || null, phone || null, relationship, birthday || null, anniversary || null,
     JSON.stringify(preferences || {}), JSON.stringify(constraints || {}), notes || '');
 
   logAudit('create', 'contact', id, { name, relationship });
@@ -73,7 +73,7 @@ router.put('/:id', (req, res) => {
   const existing = db.prepare('SELECT * FROM contacts WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Contact not found' });
 
-  const { name, email, phone, relationship, preferences, constraints, notes } = req.body;
+  const { name, email, phone, relationship, birthday, anniversary, preferences, constraints, notes } = req.body;
 
   db.prepare(`
     UPDATE contacts SET
@@ -81,6 +81,8 @@ router.put('/:id', (req, res) => {
       email = COALESCE(?, email),
       phone = COALESCE(?, phone),
       relationship = COALESCE(?, relationship),
+      birthday = ?,
+      anniversary = ?,
       preferences = COALESCE(?, preferences),
       constraints = COALESCE(?, constraints),
       notes = COALESCE(?, notes),
@@ -89,6 +91,8 @@ router.put('/:id', (req, res) => {
   `).run(
     name || null, email !== undefined ? email : null, phone !== undefined ? phone : null,
     relationship || null,
+    birthday !== undefined ? (birthday || null) : existing.birthday,
+    anniversary !== undefined ? (anniversary || null) : existing.anniversary,
     preferences ? JSON.stringify(preferences) : null,
     constraints ? JSON.stringify(constraints) : null,
     notes !== undefined ? notes : null,
@@ -102,6 +106,60 @@ router.put('/:id', (req, res) => {
     ...updated,
     preferences: JSON.parse(updated.preferences || '{}'),
     constraints: JSON.parse(updated.constraints || '{}'),
+  });
+});
+
+// Bulk import contacts from CSV or vCard data
+router.post('/import', (req, res) => {
+  const db = getDb();
+  const { contacts: importData, format } = req.body;
+
+  if (!importData || !Array.isArray(importData) || importData.length === 0) {
+    return res.status(400).json({ error: 'No contacts provided for import' });
+  }
+
+  const imported = [];
+  const errors = [];
+
+  const insertStmt = db.prepare(`
+    INSERT INTO contacts (id, name, email, phone, relationship, birthday, anniversary, preferences, constraints, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const importMany = db.transaction((rows) => {
+    for (const contact of rows) {
+      if (!contact.name) {
+        errors.push({ contact, error: 'Name is required' });
+        continue;
+      }
+      const id = uuidv4();
+      try {
+        insertStmt.run(
+          id,
+          contact.name,
+          contact.email || null,
+          contact.phone || null,
+          contact.relationship || 'friend',
+          contact.birthday || null,
+          contact.anniversary || null,
+          JSON.stringify(contact.preferences || {}),
+          JSON.stringify(contact.constraints || {}),
+          contact.notes || ''
+        );
+        imported.push({ id, name: contact.name });
+        logAudit('create', 'contact', id, { name: contact.name, source: 'bulk_import' });
+      } catch (err) {
+        errors.push({ contact: contact.name, error: err.message });
+      }
+    }
+  });
+
+  importMany(importData);
+
+  res.status(201).json({
+    imported: imported.length,
+    errors: errors.length,
+    details: { imported, errors },
   });
 });
 

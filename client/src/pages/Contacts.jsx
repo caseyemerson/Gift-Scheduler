@@ -1,13 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 
 export default function Contacts() {
   const [contacts, setContacts] = useState([]);
   const [showForm, setShowForm] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [importResult, setImportResult] = useState(null);
+  const fileInputRef = useRef(null);
   const [form, setForm] = useState({
     name: '', email: '', phone: '', relationship: 'friend',
+    birthday: '', anniversary: '',
     preferences: { interests: [], preferred_tones: ['warm'] },
     constraints: { avoid_categories: [] },
     notes: '',
@@ -33,6 +37,7 @@ export default function Contacts() {
       setShowForm(false);
       setForm({
         name: '', email: '', phone: '', relationship: 'friend',
+        birthday: '', anniversary: '',
         preferences: { interests: [], preferred_tones: ['warm'] },
         constraints: { avoid_categories: [] },
         notes: '',
@@ -53,6 +58,77 @@ export default function Contacts() {
     }
   }
 
+  function parseCSV(text) {
+    const lines = text.trim().split('\n');
+    if (lines.length < 2) return [];
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+    return lines.slice(1).map(line => {
+      const values = line.split(',').map(v => v.trim().replace(/^["']|["']$/g, ''));
+      const obj = {};
+      headers.forEach((h, i) => { obj[h] = values[i] || ''; });
+      return {
+        name: obj.name || obj.full_name || obj['full name'] || '',
+        email: obj.email || obj.e_mail || '',
+        phone: obj.phone || obj.telephone || obj.tel || obj.mobile || '',
+        relationship: obj.relationship || 'friend',
+        birthday: obj.birthday || obj.bday || obj['birth date'] || '',
+        anniversary: obj.anniversary || '',
+        notes: obj.notes || '',
+      };
+    }).filter(c => c.name);
+  }
+
+  function parseVCard(text) {
+    const cards = text.split('BEGIN:VCARD').filter(c => c.trim());
+    return cards.map(card => {
+      const lines = card.split('\n').map(l => l.trim());
+      const get = (prefix) => {
+        const line = lines.find(l => l.toUpperCase().startsWith(prefix.toUpperCase()));
+        if (!line) return '';
+        return line.substring(line.indexOf(':') + 1).trim();
+      };
+      const fn = get('FN');
+      const n = get('N');
+      const name = fn || (n ? n.split(';').filter(Boolean).reverse().join(' ') : '');
+      const tel = get('TEL');
+      const email = get('EMAIL');
+      const bday = get('BDAY');
+      let birthday = '';
+      if (bday) {
+        // vCard dates can be YYYYMMDD or YYYY-MM-DD
+        const clean = bday.replace(/-/g, '');
+        if (clean.length === 8) {
+          birthday = `${clean.slice(0, 4)}-${clean.slice(4, 6)}-${clean.slice(6, 8)}`;
+        }
+      }
+      return { name, email, phone: tel, relationship: 'friend', birthday, notes: '' };
+    }).filter(c => c.name);
+  }
+
+  async function handleFileImport(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const text = await file.text();
+    let parsed;
+    if (file.name.endsWith('.vcf') || file.name.endsWith('.vcard') || text.includes('BEGIN:VCARD')) {
+      parsed = parseVCard(text);
+    } else {
+      parsed = parseCSV(text);
+    }
+    if (parsed.length === 0) {
+      alert('No contacts found in the file. Ensure it is a valid CSV or vCard (.vcf) file.');
+      return;
+    }
+    try {
+      const result = await api.importContacts(parsed);
+      setImportResult(result);
+      loadContacts();
+    } catch (err) {
+      alert(err.message);
+    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }
+
   const relationships = ['friend', 'family', 'partner', 'colleague', 'acquaintance', 'other'];
   const interestOptions = ['tech', 'books', 'food', 'coffee', 'music', 'fitness', 'home', 'self-care', 'fashion', 'games', 'plants', 'art', 'wine', 'cooking', 'travel'];
 
@@ -62,10 +138,64 @@ export default function Contacts() {
     <div className="max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Contacts</h1>
-        <button onClick={() => setShowForm(!showForm)} className="btn-primary">
-          {showForm ? 'Cancel' : '+ Add Contact'}
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => { setShowImport(!showImport); setShowForm(false); setImportResult(null); }} className="btn-secondary">
+            {showImport ? 'Cancel' : 'Import'}
+          </button>
+          <button onClick={() => { setShowForm(!showForm); setShowImport(false); }} className="btn-primary">
+            {showForm ? 'Cancel' : '+ Add Contact'}
+          </button>
+        </div>
       </div>
+
+      {/* Import section */}
+      {showImport && (
+        <div className="card mb-6 space-y-4">
+          <h2 className="text-lg font-semibold">Bulk Import Contacts</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Import contacts from a CSV file or a vCard (.vcf) file exported from your phone.
+          </p>
+          <div className="space-y-3">
+            <div>
+              <p className="text-sm font-medium mb-2">CSV format (first row must be headers):</p>
+              <code className="text-xs bg-gray-100 dark:bg-gray-700 rounded px-2 py-1 block">
+                name, email, phone, relationship, birthday, anniversary, notes
+              </code>
+            </div>
+            <div>
+              <p className="text-sm font-medium mb-2">vCard (.vcf):</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Export contacts from your phone's Contacts app as a .vcf file, then upload it here.
+                On iPhone: Contacts &gt; Share &gt; Share VCF. On Android: Contacts &gt; Manage &gt; Export.
+              </p>
+            </div>
+            <div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.vcf,.vcard,text/csv,text/vcard"
+                onChange={handleFileImport}
+                className="input"
+              />
+            </div>
+          </div>
+          {importResult && (
+            <div className={`rounded-lg p-4 ${importResult.errors > 0 ? 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800' : 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'}`}>
+              <p className="font-medium">
+                Imported {importResult.imported} contact{importResult.imported !== 1 ? 's' : ''} successfully.
+                {importResult.errors > 0 && ` ${importResult.errors} failed.`}
+              </p>
+              {importResult.details?.errors?.length > 0 && (
+                <ul className="text-sm mt-2 space-y-1">
+                  {importResult.details.errors.map((err, i) => (
+                    <li key={i} className="text-red-600 dark:text-red-400">{err.contact}: {err.error}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {showForm && (
         <form onSubmit={handleSubmit} className="card mb-6 space-y-4">
@@ -89,6 +219,14 @@ export default function Contacts() {
               <label className="label">Phone</label>
               <input className="input" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} />
             </div>
+            <div>
+              <label className="label">Birthday</label>
+              <input className="input" type="date" value={form.birthday} onChange={e => setForm({...form, birthday: e.target.value})} />
+            </div>
+            <div>
+              <label className="label">Anniversary</label>
+              <input className="input" type="date" value={form.anniversary} onChange={e => setForm({...form, anniversary: e.target.value})} />
+            </div>
           </div>
           <div>
             <label className="label">Interests</label>
@@ -104,8 +242,8 @@ export default function Contacts() {
                   }}
                   className={`px-3 py-1 rounded-full text-sm transition-colors ${
                     (form.preferences.interests || []).includes(interest)
-                      ? 'bg-primary-100 text-primary-700 ring-1 ring-primary-300'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      ? 'bg-primary-100 text-primary-700 ring-1 ring-primary-300 dark:bg-primary-900/30 dark:text-primary-400 dark:ring-primary-700'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
                   }`}>
                   {interest}
                 </button>
@@ -122,7 +260,7 @@ export default function Contacts() {
 
       {contacts.length === 0 ? (
         <div className="card text-center py-12">
-          <p className="text-gray-500 mb-4">No contacts yet. Add your first contact to get started.</p>
+          <p className="text-gray-500 dark:text-gray-400 mb-4">No contacts yet. Add your first contact to get started.</p>
           <button onClick={() => setShowForm(true)} className="btn-primary">+ Add Contact</button>
         </div>
       ) : (
@@ -131,8 +269,8 @@ export default function Contacts() {
             <div key={contact.id} className="card hover:shadow-md transition-shadow">
               <div className="flex items-start justify-between">
                 <Link to={`/contacts/${contact.id}`} className="flex-1">
-                  <h3 className="font-semibold text-gray-900 hover:text-primary-600">{contact.name}</h3>
-                  <p className="text-sm text-gray-500 capitalize">{contact.relationship}</p>
+                  <h3 className="font-semibold text-gray-900 dark:text-gray-100 hover:text-primary-600">{contact.name}</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">{contact.relationship}</p>
                 </Link>
                 <button onClick={() => handleDelete(contact.id, contact.name)}
                   className="text-gray-400 hover:text-red-500 p-1">
@@ -141,14 +279,20 @@ export default function Contacts() {
                   </svg>
                 </button>
               </div>
-              {contact.email && <p className="text-sm text-gray-500 mt-2">{contact.email}</p>}
+              {contact.email && <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">{contact.email}</p>}
+              {(contact.birthday || contact.anniversary) && (
+                <div className="flex gap-3 mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  {contact.birthday && <span>Birthday: {new Date(contact.birthday + 'T00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>}
+                  {contact.anniversary && <span>Anniversary: {new Date(contact.anniversary + 'T00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>}
+                </div>
+              )}
               {contact.preferences?.interests?.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-3">
                   {contact.preferences.interests.slice(0, 4).map(i => (
-                    <span key={i} className="badge bg-gray-100 text-gray-600">{i}</span>
+                    <span key={i} className="badge bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">{i}</span>
                   ))}
                   {contact.preferences.interests.length > 4 && (
-                    <span className="badge bg-gray-100 text-gray-600">+{contact.preferences.interests.length - 4}</span>
+                    <span className="badge bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">+{contact.preferences.interests.length - 4}</span>
                   )}
                 </div>
               )}

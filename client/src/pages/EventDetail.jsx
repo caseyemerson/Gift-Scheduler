@@ -110,7 +110,7 @@ export default function EventDetail() {
   }
 
   if (loading) return <div className="flex justify-center py-20"><div className="w-8 h-8 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin" /></div>;
-  if (!event) return <div className="text-center py-12 text-gray-500">Event not found</div>;
+  if (!event) return <div className="text-center py-12 text-gray-500 dark:text-gray-400">Event not found</div>;
 
   const daysUntil = Math.ceil((new Date(event.date) - new Date()) / (1000 * 60 * 60 * 24));
   const hasApproval = event.approvals?.some(a => a.status === 'approved');
@@ -134,7 +134,7 @@ export default function EventDetail() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold">{event.name}</h1>
-            <p className="text-gray-500 mt-1">
+            <p className="text-gray-500 dark:text-gray-400 mt-1">
               For <Link to={`/contacts/${event.contact_id}`} className="text-primary-600 hover:text-primary-700">{event.contact_name}</Link>
               {' '}&middot; {event.relationship} &middot; {event.type}
             </p>
@@ -159,9 +159,9 @@ export default function EventDetail() {
           {['Recommendations', 'Card Messages', 'Select', 'Approve', 'Order'].map((label, i) => (
             <div key={label} className="flex items-center">
               <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap ${
-                i + 1 < step ? 'bg-green-100 text-green-700' :
-                i + 1 === step ? 'bg-primary-100 text-primary-700' :
-                'bg-gray-100 text-gray-500'
+                i + 1 < step ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                i + 1 === step ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400' :
+                'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
               }`}>
                 {i + 1 < step ? (
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -172,7 +172,7 @@ export default function EventDetail() {
                 )}
                 {label}
               </div>
-              {i < 4 && <div className={`w-4 h-0.5 ${i + 1 < step ? 'bg-green-300' : 'bg-gray-200'}`} />}
+              {i < 4 && <div className={`w-4 h-0.5 ${i + 1 < step ? 'bg-green-300 dark:bg-green-700' : 'bg-gray-200 dark:bg-gray-600'}`} />}
             </div>
           ))}
         </div>
@@ -194,10 +194,10 @@ export default function EventDetail() {
                 onClick={() => !hasOrder && setSelectedGift(gift.id)}
                 className={`p-4 rounded-lg border-2 transition-all cursor-pointer ${
                   selectedGift === gift.id
-                    ? 'border-primary-500 bg-primary-50'
+                    ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
                     : gift.status === 'purchased'
-                    ? 'border-green-300 bg-green-50'
-                    : 'border-gray-200 hover:border-gray-300'
+                    ? 'border-green-300 bg-green-50 dark:border-green-700 dark:bg-green-900/20'
+                    : 'border-gray-200 hover:border-gray-300 dark:border-gray-600 dark:hover:border-gray-500'
                 }`}>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -215,20 +215,20 @@ export default function EventDetail() {
                         <span className="badge bg-red-100 text-red-700">Delivery risk</span>
                       )}
                     </div>
-                    <p className="text-sm text-gray-600 mt-1">{gift.description}</p>
-                    <p className="text-xs text-gray-500 mt-2 italic">{gift.reasoning}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{gift.description}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-2 italic">{gift.reasoning}</p>
                   </div>
                   <div className="text-right ml-4 flex-shrink-0">
                     <div className="text-lg font-bold">${gift.price.toFixed(2)}</div>
-                    <div className="text-xs text-gray-500">{gift.retailer}</div>
-                    <div className="text-xs text-gray-500">Est. {gift.estimated_delivery}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">{gift.retailer}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Est. {gift.estimated_delivery}</div>
                   </div>
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-gray-500 text-sm">Click "Generate Recommendations" to get gift suggestions based on the contact's preferences and budget.</p>
+          <p className="text-gray-500 dark:text-gray-400 text-sm">Click "Generate Recommendations" to get gift suggestions based on the contact's preferences and budget.</p>
         )}
       </div>
 
@@ -245,10 +245,10 @@ export default function EventDetail() {
 
         {event.cardMessages?.length > 0 && (
           <div className="flex gap-2 mb-3 flex-wrap">
-            <span className="text-sm text-gray-500 py-1">Tone:</span>
+            <span className="text-sm text-gray-500 dark:text-gray-400 py-1">Tone:</span>
             {['warm', 'formal', 'humorous', 'heartfelt', 'casual'].map(tone => (
               <button key={tone} onClick={() => handleGenerateCards([tone])}
-                className="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors capitalize">
+                className="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 transition-colors capitalize">
                 {tone}
               </button>
             ))}
@@ -262,13 +262,13 @@ export default function EventDetail() {
                 onClick={() => !hasOrder && setSelectedCard(msg.id)}
                 className={`p-4 rounded-lg border-2 transition-all cursor-pointer ${
                   selectedCard === msg.id || msg.selected
-                    ? 'border-primary-500 bg-primary-50'
-                    : 'border-gray-200 hover:border-gray-300'
+                    ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                    : 'border-gray-200 hover:border-gray-300 dark:border-gray-600 dark:hover:border-gray-500'
                 }`}>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <span className="badge bg-gray-100 text-gray-600 mb-2 capitalize">{msg.tone}</span>
-                    <p className="text-gray-700 mt-1">{msg.message}</p>
+                    <p className="text-gray-700 dark:text-gray-300 mt-1">{msg.message}</p>
                   </div>
                   {(selectedCard === msg.id || msg.selected) && (
                     <svg className="w-6 h-6 text-primary-600 flex-shrink-0 ml-2" fill="currentColor" viewBox="0 0 24 24">
@@ -280,7 +280,7 @@ export default function EventDetail() {
             ))}
           </div>
         ) : (
-          <p className="text-gray-500 text-sm">Click "Generate Messages" to create card message drafts.</p>
+          <p className="text-gray-500 dark:text-gray-400 text-sm">Click "Generate Messages" to create card message drafts.</p>
         )}
       </div>
 
@@ -290,15 +290,15 @@ export default function EventDetail() {
 
         {hasOrder ? (
           <div className="space-y-4">
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-              <h3 className="font-semibold text-green-800 mb-2">Order Placed</h3>
+            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+              <h3 className="font-semibold text-green-800 dark:text-green-300 mb-2">Order Placed</h3>
               {event.orders?.map(order => (
                 <div key={order.id} className="flex items-center justify-between">
                   <div>
                     <p className="text-sm">Reference: <span className="font-mono">{order.order_reference}</span></p>
-                    <p className="text-sm text-gray-600">Status: <span className="font-medium capitalize">{order.status}</span></p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Status: <span className="font-medium capitalize">{order.status}</span></p>
                     {order.estimated_delivery && (
-                      <p className="text-sm text-gray-600">Est. delivery: {order.estimated_delivery}</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Est. delivery: {order.estimated_delivery}</p>
                     )}
                   </div>
                   <span className={`badge ${
@@ -312,18 +312,18 @@ export default function EventDetail() {
               ))}
             </div>
             {approvedGift && (
-              <div className="bg-gray-50 rounded-lg p-4">
+              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
                 <p className="text-sm font-medium">Selected gift: {approvedGift.name} (${approvedGift.price.toFixed(2)})</p>
-                <p className="text-sm text-gray-500">{approvedGift.retailer}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{approvedGift.retailer}</p>
               </div>
             )}
           </div>
         ) : hasApproval ? (
           <div className="space-y-4">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <p className="text-blue-800 font-medium">Gift approved! Ready to place order.</p>
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+              <p className="text-blue-800 dark:text-blue-300 font-medium">Gift approved! Ready to place order.</p>
               {approvedGift && (
-                <p className="text-sm text-blue-600 mt-1">{approvedGift.name} - ${approvedGift.price.toFixed(2)} from {approvedGift.retailer}</p>
+                <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">{approvedGift.name} - ${approvedGift.price.toFixed(2)} from {approvedGift.retailer}</p>
               )}
             </div>
             <button onClick={handlePlaceOrder} disabled={ordering} className="btn-success w-full">
@@ -334,9 +334,9 @@ export default function EventDetail() {
           <div className="space-y-4">
             {selectedGift && selectedCard ? (
               <>
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                  <p className="text-amber-800 font-medium">Ready for approval</p>
-                  <p className="text-sm text-amber-600 mt-1">
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                  <p className="text-amber-800 dark:text-amber-300 font-medium">Ready for approval</p>
+                  <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
                     Gift and card message selected. Review your choices and approve to proceed.
                   </p>
                 </div>
@@ -345,7 +345,7 @@ export default function EventDetail() {
                 </button>
               </>
             ) : (
-              <div className="bg-gray-50 rounded-lg p-4 text-gray-500 text-sm">
+              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 text-gray-500 dark:text-gray-400 text-sm">
                 {!event.recommendations?.length
                   ? 'Step 1: Generate gift recommendations above.'
                   : !event.cardMessages?.length
@@ -358,11 +358,11 @@ export default function EventDetail() {
 
         {/* Approval history */}
         {event.approvals?.length > 0 && (
-          <div className="mt-4 pt-4 border-t">
-            <h3 className="text-sm font-medium text-gray-700 mb-2">Approval History</h3>
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Approval History</h3>
             {event.approvals.map(a => (
               <div key={a.id} className="flex items-center justify-between text-sm py-1">
-                <span className={a.status === 'approved' ? 'text-green-700' : 'text-red-700'}>
+                <span className={a.status === 'approved' ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}>
                   {a.status} by {a.approved_by}
                 </span>
                 <span className="text-gray-400">{new Date(a.created_at).toLocaleString()}</span>

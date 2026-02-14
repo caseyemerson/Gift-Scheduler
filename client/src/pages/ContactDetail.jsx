@@ -31,6 +31,8 @@ export default function ContactDetail() {
         email: form.email,
         phone: form.phone,
         relationship: form.relationship,
+        birthday: form.birthday || '',
+        anniversary: form.anniversary || '',
         preferences: form.preferences,
         constraints: form.constraints,
         notes: form.notes,
@@ -53,7 +55,7 @@ export default function ContactDetail() {
   }
 
   if (loading) return <div className="flex justify-center py-20"><div className="w-8 h-8 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin" /></div>;
-  if (!contact) return <div className="text-center py-12 text-gray-500">Contact not found</div>;
+  if (!contact) return <div className="text-center py-12 text-gray-500 dark:text-gray-400">Contact not found</div>;
 
   const interestOptions = ['tech', 'books', 'food', 'coffee', 'music', 'fitness', 'home', 'self-care', 'fashion', 'games', 'plants', 'art', 'wine', 'cooking', 'travel'];
 
@@ -69,7 +71,7 @@ export default function ContactDetail() {
             ) : (
               <h1 className="text-2xl font-bold">{contact.name}</h1>
             )}
-            <p className="text-gray-500 capitalize mt-1">{contact.relationship}</p>
+            <p className="text-gray-500 dark:text-gray-400 capitalize mt-1">{contact.relationship}</p>
           </div>
           <div className="flex gap-2">
             {editing ? (
@@ -92,7 +94,7 @@ export default function ContactDetail() {
             {editing ? (
               <input className="input" value={form.email || ''} onChange={e => setForm({...form, email: e.target.value})} />
             ) : (
-              <p className="text-gray-700">{contact.email || 'Not set'}</p>
+              <p className="text-gray-700 dark:text-gray-300">{contact.email || 'Not set'}</p>
             )}
           </div>
           <div>
@@ -100,7 +102,23 @@ export default function ContactDetail() {
             {editing ? (
               <input className="input" value={form.phone || ''} onChange={e => setForm({...form, phone: e.target.value})} />
             ) : (
-              <p className="text-gray-700">{contact.phone || 'Not set'}</p>
+              <p className="text-gray-700 dark:text-gray-300">{contact.phone || 'Not set'}</p>
+            )}
+          </div>
+          <div>
+            <label className="label">Birthday</label>
+            {editing ? (
+              <input className="input" type="date" value={form.birthday || ''} onChange={e => setForm({...form, birthday: e.target.value})} />
+            ) : (
+              <p className="text-gray-700 dark:text-gray-300">{contact.birthday ? new Date(contact.birthday + 'T00:00').toLocaleDateString() : 'Not set'}</p>
+            )}
+          </div>
+          <div>
+            <label className="label">Anniversary</label>
+            {editing ? (
+              <input className="input" type="date" value={form.anniversary || ''} onChange={e => setForm({...form, anniversary: e.target.value})} />
+            ) : (
+              <p className="text-gray-700 dark:text-gray-300">{contact.anniversary ? new Date(contact.anniversary + 'T00:00').toLocaleDateString() : 'Not set'}</p>
             )}
           </div>
         </div>
@@ -118,8 +136,8 @@ export default function ContactDetail() {
                   }}
                   className={`px-3 py-1 rounded-full text-sm transition-colors ${
                     (form.preferences?.interests || []).includes(interest)
-                      ? 'bg-primary-100 text-primary-700 ring-1 ring-primary-300'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      ? 'bg-primary-100 text-primary-700 ring-1 ring-primary-300 dark:bg-primary-900/30 dark:text-primary-400 dark:ring-primary-700'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
                   }`}>
                   {interest}
                 </button>
@@ -133,7 +151,7 @@ export default function ContactDetail() {
             <label className="label">Interests</label>
             <div className="flex flex-wrap gap-2">
               {contact.preferences.interests.map(i => (
-                <span key={i} className="badge bg-primary-50 text-primary-700">{i}</span>
+                <span key={i} className="badge bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400">{i}</span>
               ))}
             </div>
           </div>
@@ -144,7 +162,7 @@ export default function ContactDetail() {
           {editing ? (
             <textarea className="input" rows={3} value={form.notes || ''} onChange={e => setForm({...form, notes: e.target.value})} />
           ) : (
-            <p className="text-gray-700">{contact.notes || 'No notes'}</p>
+            <p className="text-gray-700 dark:text-gray-300">{contact.notes || 'No notes'}</p>
           )}
         </div>
       </div>
@@ -156,17 +174,17 @@ export default function ContactDetail() {
           <Link to={`/events?contact=${id}`} className="btn-primary text-sm">+ Add Event</Link>
         </div>
         {contact.events?.length === 0 ? (
-          <p className="text-gray-500 text-sm">No events for this contact</p>
+          <p className="text-gray-500 dark:text-gray-400 text-sm">No events for this contact</p>
         ) : (
           <div className="space-y-2">
             {contact.events?.map(event => (
               <Link key={event.id} to={`/events/${event.id}`}
-                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                 <div>
                   <span className="font-medium">{event.name}</span>
-                  <span className="badge ml-2 bg-gray-200 text-gray-700">{event.type}</span>
+                  <span className="badge ml-2 bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-300">{event.type}</span>
                 </div>
-                <span className="text-sm text-gray-500">{new Date(event.date).toLocaleDateString()}</span>
+                <span className="text-sm text-gray-500 dark:text-gray-400">{new Date(event.date).toLocaleDateString()}</span>
               </Link>
             ))}
           </div>
@@ -177,18 +195,18 @@ export default function ContactDetail() {
       <div className="card">
         <h2 className="text-lg font-semibold mb-4">Gift History</h2>
         {contact.giftHistory?.length === 0 ? (
-          <p className="text-gray-500 text-sm">No gifts sent yet</p>
+          <p className="text-gray-500 dark:text-gray-400 text-sm">No gifts sent yet</p>
         ) : (
           <div className="space-y-2">
             {contact.giftHistory?.map(gift => (
-              <div key={gift.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div key={gift.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                 <div>
                   <span className="font-medium">{gift.name}</span>
-                  <span className="text-sm text-gray-500 ml-2">{gift.event_name}</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">{gift.event_name}</span>
                 </div>
                 <div className="text-right">
                   <span className="font-medium">${gift.price?.toFixed(2)}</span>
-                  <span className="text-sm text-gray-500 ml-2">{gift.retailer}</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">{gift.retailer}</span>
                 </div>
               </div>
             ))}
