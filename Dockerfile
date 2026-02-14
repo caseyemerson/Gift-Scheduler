@@ -4,7 +4,7 @@ WORKDIR /app/client
 COPY client/package.json client/package-lock.json* ./
 RUN npm install
 COPY client/ ./
-RUN npm run build
+RUN ./node_modules/.bin/vite build
 
 # Stage 2: Production server
 FROM node:18-alpine AS production
