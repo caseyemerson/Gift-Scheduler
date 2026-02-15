@@ -19,6 +19,7 @@ A full-stack application that helps you select, prepare, and send appropriate gi
 - **Emergency Stop** — Instantly disable all purchasing and cancel pending orders
 - **Autonomy Controls** — Per-person and per-event-type rules (scaffolded for future auto-purchase)
 - **Notifications** — Event reminders, approval requests, and delivery alerts
+- **Backup & Restore** — Export all data as JSON or download the raw SQLite file; restore from a JSON backup via the Settings page
 
 ## Tech Stack
 
@@ -105,6 +106,7 @@ Gift-Scheduler/
 │   │   │   ├── notifications.js# Notification system
 │   │   │   ├── settings.js     # Global settings and autonomy
 │   │   │   ├── integrations.js # Integration status and config
+│   │   │   ├── backup.js       # Backup, export, and restore
 │   │   │   └── dashboard.js    # Dashboard aggregation
 │   │   └── __tests__/
 │   │       └── api.test.js     # Server tests
@@ -190,6 +192,10 @@ Budgets can be changed globally or overridden per contact.
 | POST   | `/api/settings/autonomy`        | Create autonomy rule             |
 | GET    | `/api/integrations`             | List all integration statuses    |
 | GET    | `/api/integrations/:provider`   | Get status for one provider      |
+| GET    | `/api/backup/export`            | Export all data as JSON file     |
+| GET    | `/api/backup/download`          | Download raw SQLite database     |
+| POST   | `/api/backup/restore`           | Restore from JSON backup         |
+| GET    | `/api/backup/status`            | Database size and row counts     |
 
 ## Integrations
 
