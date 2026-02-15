@@ -276,12 +276,12 @@ export default function Settings() {
         )}
 
         <div className="flex flex-wrap gap-3">
-          <a href="/api/backup/export" download className="btn-primary text-sm">
+          <button onClick={() => api.exportBackupJson().catch(err => alert(err.message))} className="btn-primary text-sm">
             Export JSON
-          </a>
-          <a href="/api/backup/download" download className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+          </button>
+          <button onClick={() => api.downloadBackupSqlite().catch(err => alert(err.message))} className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
             Download SQLite
-          </a>
+          </button>
           <label className={`px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer ${restoreLoading ? 'opacity-50 pointer-events-none' : ''}`}>
             {restoreLoading ? 'Restoring...' : 'Restore from JSON'}
             <input type="file" accept=".json" onChange={handleRestore} className="hidden" disabled={restoreLoading} />

@@ -3,7 +3,9 @@ const cors = require('cors');
 const helmet = require('helmet');
 const path = require('path');
 const { getDb, closeDb } = require('./database');
+const { requireAuth } = require('./middleware');
 
+const authRouter = require('./routes/auth');
 const contactsRouter = require('./routes/contacts');
 const eventsRouter = require('./routes/events');
 const budgetsRouter = require('./routes/budgets');
@@ -20,9 +22,37 @@ const backupRouter = require('./routes/backup');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middleware
-app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors());
+// Determine allowed origin for CORS
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || (
+  process.env.NODE_ENV === 'production'
+    ? undefined  // In production with no explicit origin, only allow same-origin
+    : 'http://localhost:5173'
+);
+
+// Middleware — security headers with Content Security Policy
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+    },
+  },
+}));
+
+// CORS — restricted to application origin only
+app.use(cors({
+  origin: ALLOWED_ORIGIN || false,
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+}));
+
 app.use(express.json({ limit: '10mb' }));
 
 // Request logging
@@ -37,12 +67,17 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check
+// Public routes (no authentication required)
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// API routes
+app.use('/api/auth', authRouter);
+
+// Authentication middleware — all routes below require a valid JWT
+app.use('/api', requireAuth);
+
+// Protected API routes
 app.use('/api/contacts', contactsRouter);
 app.use('/api/events', eventsRouter);
 app.use('/api/budgets', budgetsRouter);
