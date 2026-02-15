@@ -201,7 +201,7 @@ export default function Settings() {
         <div className="card">
           <div className="mb-4">
             <h2 className="text-lg font-semibold">Integrations</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Connect to retailers, shopping aggregators, and LLM providers. Set API keys as environment variables in Railway.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Connect to retailers, florists, shopping aggregators, and LLM providers. Set API keys as environment variables in Railway.</p>
           </div>
 
           {/* Retailers */}
@@ -210,6 +210,16 @@ export default function Settings() {
             <div className="space-y-2">
               {integrations.retailers.map(r => (
                 <IntegrationCard key={r.provider} integration={r} />
+              ))}
+            </div>
+          </div>
+
+          {/* Florists */}
+          <div className="mb-5">
+            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Florists</h3>
+            <div className="space-y-2">
+              {integrations.florists.map(f => (
+                <IntegrationCard key={f.provider} integration={f} />
               ))}
             </div>
           </div>

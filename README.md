@@ -10,7 +10,7 @@ A full-stack application that helps you select, prepare, and send appropriate gi
 - **Event Tracking** — Birthdays, anniversaries, holidays, and other dates with configurable lead times and recurring support
 - **Dark Mode** — Automatically follows your device's light/dark preference
 - **Budget Management** — Category-based defaults with per-person overrides
-- **Integrations** — Connect to retailers (Amazon, Etsy, Walmart), Google Shopping, and LLM providers (Claude, ChatGPT, Gemini) via the Settings page
+- **Integrations** — Connect to retailers (Amazon, Etsy, Walmart), florists (1-800-Flowers, SendFlowers, Avas Flowers), Google Shopping, and LLM providers (Claude, ChatGPT, Gemini) via the Settings page
 - **Gift Recommendations** — Scored suggestions from retailer APIs or built-in catalog, based on interests, budget, and delivery feasibility
 - **Card Message Drafting** — AI-generated or template-based messages in 5 tones (warm, formal, humorous, heartfelt, casual)
 - **Approval Workflow** — Every purchase requires explicit approval before proceeding
@@ -204,6 +204,7 @@ Gift Scheduler can optionally connect to external services. All integrations are
 | Category         | Services                          | Purpose                                  |
 |------------------|-----------------------------------|------------------------------------------|
 | Retailers        | Amazon, Etsy, Walmart             | Product search, pricing, and ordering    |
+| Florists         | 1-800-Flowers, SendFlowers, Avas Flowers | Browse and order flower arrangements |
 | Aggregator       | Google Shopping                   | Cross-retailer product comparison        |
 | LLM Providers    | Claude, ChatGPT, Gemini, OpenAI-compatible | AI-generated card messages      |
 
@@ -216,6 +217,11 @@ See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) for full setup instructions, en
 AMAZON_API_KEY=          AMAZON_API_SECRET=       AMAZON_PARTNER_TAG=
 ETSY_API_KEY=
 WALMART_API_KEY=
+
+# Florists
+FLOWERS1800_API_KEY=
+SENDFLOWERS_API_KEY=
+AVASFLOWERS_API_KEY=
 
 # Shopping aggregator
 GOOGLE_SHOPPING_API_KEY= GOOGLE_SHOPPING_ENGINE_ID=

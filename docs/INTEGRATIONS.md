@@ -1,12 +1,13 @@
 # Integrations Architecture
 
-This document describes how Gift Scheduler connects to external services — retailers, shopping aggregators, and LLM providers — and how credentials are managed securely.
+This document describes how Gift Scheduler connects to external services — retailers, florists, shopping aggregators, and LLM providers — and how credentials are managed securely.
 
 ## Table of Contents
 
 - [Overview](#overview)
 - [Environment Variables Reference](#environment-variables-reference)
 - [Retailer Integrations](#retailer-integrations)
+- [Florist Integrations](#florist-integrations)
 - [Shopping Aggregator Integration](#shopping-aggregator-integration)
 - [LLM Provider Integration](#llm-provider-integration)
 - [In-App Secret Entry](#in-app-secret-entry)
@@ -18,11 +19,12 @@ This document describes how Gift Scheduler connects to external services — ret
 
 ## Overview
 
-Gift Scheduler integrates with three categories of external services:
+Gift Scheduler integrates with four categories of external services:
 
 | Category             | Services                            | Purpose                                      |
 |----------------------|-------------------------------------|----------------------------------------------|
 | **Retailers**        | Amazon, Etsy, Walmart               | Search products, check prices, place orders  |
+| **Florists**         | 1-800-Flowers, SendFlowers, Avas Flowers | Browse and order flower arrangements    |
 | **Aggregators**      | Google Shopping                      | Cross-retailer product search and comparison |
 | **LLM Providers**    | Claude, ChatGPT, Gemini, OpenAI-compatible | Generate personalized card messages    |
 
@@ -43,6 +45,14 @@ Set these in Railway (dashboard or CLI) or in a local `.env` file. All are optio
 | `AMAZON_PARTNER_TAG`         | Amazon Associates partner/tracking tag           | `giftscheduler-20`         |
 | `ETSY_API_KEY`               | Etsy Open API key (v3)                           | `abc123def456...`          |
 | `WALMART_API_KEY`            | Walmart Affiliate API client ID                  | `a1b2c3d4-e5f6...`        |
+
+### Florists
+
+| Variable                     | Description                                      | Example                    |
+|------------------------------|--------------------------------------------------|----------------------------|
+| `FLOWERS1800_API_KEY`        | 1-800-Flowers API key                            | `fl-abc123...`             |
+| `SENDFLOWERS_API_KEY`        | SendFlowers API key                              | `sf-xyz789...`             |
+| `AVASFLOWERS_API_KEY`        | Avas Flowers API key                             | `av-def456...`             |
 
 ### Shopping Aggregator
 
@@ -131,6 +141,60 @@ Only configure **one** LLM provider. The app checks them in this order: Claude, 
 ### Fallback Behavior
 
 When no retailer API keys are configured, the gift recommendation engine uses its **built-in mock catalog** of 24 curated gift items across birthday, anniversary, and holiday categories. The mock catalog provides a fully functional experience for browsing and planning, but without real-time pricing or stock data.
+
+---
+
+## Florist Integrations
+
+Florist integrations enable ordering flower arrangements directly through Gift Scheduler. When a contact's default gift options include "flowers," these services provide real product listings, pricing, and delivery scheduling.
+
+### 1-800-Flowers
+
+**What it does:** Browse and order flower arrangements, plants, and floral gift baskets.
+
+**Setup:**
+1. Sign up for the [1-800-Flowers Affiliate Program](https://www.1800flowers.com/affiliate-program)
+2. Obtain an API key from the developer portal
+3. Set `FLOWERS1800_API_KEY`
+
+**How Gift Scheduler uses it:**
+- Searches flower arrangements by occasion (birthday, anniversary, sympathy, etc.)
+- Filters by price range to stay within budget
+- Provides delivery date options and same-day delivery availability
+
+**Rate limits:** Generous for personal use.
+
+### SendFlowers
+
+**What it does:** Browse and order flower deliveries with nationwide shipping.
+
+**Setup:**
+1. Sign up for the [SendFlowers Affiliate Program](https://www.sendflowers.com/affiliate)
+2. Obtain an API key
+3. Set `SENDFLOWERS_API_KEY`
+
+**How Gift Scheduler uses it:**
+- Searches floral products by category and price
+- Good for budget-friendly flower delivery options
+- Returns arrangement details, pricing, and delivery windows
+
+### Avas Flowers
+
+**What it does:** Order hand-delivered floral arrangements from local florists.
+
+**Setup:**
+1. Sign up for the [Avas Flowers Affiliate Program](https://www.avasflowers.net/affiliate)
+2. Obtain an API key
+3. Set `AVASFLOWERS_API_KEY`
+
+**How Gift Scheduler uses it:**
+- Searches arrangements with a focus on hand-delivery by local florists
+- Good for same-day and next-day delivery options
+- Returns arrangement details, pricing, and local availability
+
+### Fallback Behavior
+
+When no florist API keys are configured, flower recommendations are not available through external services. Contacts with "flowers" as a default gift option will see general gift recommendations from the retailer catalog instead.
 
 ---
 
@@ -409,12 +473,12 @@ Gift Scheduler is a personal-use application. Based on realistic usage patterns:
 
 Each event triggers at most:
 
-| Action                        | Retailer API Calls | Aggregator Calls | LLM Calls |
-|-------------------------------|-------------------|-------------------|-----------|
-| Generate gift recommendations | 1-3 per retailer  | 1                 | 0         |
-| Generate card messages        | 0                 | 0                 | 1         |
-| Check delivery status         | 1                 | 0                 | 0         |
-| **Total per event**           | **2-4**           | **1**             | **1**     |
+| Action                        | Retailer API Calls | Florist API Calls | Aggregator Calls | LLM Calls |
+|-------------------------------|-------------------|-------------------|-------------------|-----------|
+| Generate gift recommendations | 1-3 per retailer  | 1-3 per florist   | 1                 | 0         |
+| Generate card messages        | 0                 | 0                 | 0                 | 1         |
+| Check delivery status         | 1                 | 1                 | 0                 | 0         |
+| **Total per event**           | **2-4**           | **2-4**           | **1**             | **1**     |
 
 ### Monthly Cost Estimates (Moderate Use — 50 events/year)
 
@@ -423,6 +487,9 @@ Each event triggers at most:
 | Amazon PA API        | ~15         | Free (with Associates) | $0         |
 | Etsy API             | ~15         | Free tier        | $0             |
 | Walmart API          | ~15         | Free             | $0             |
+| 1-800-Flowers        | ~5          | Free (affiliate) | $0             |
+| SendFlowers          | ~5          | Free (affiliate) | $0             |
+| Avas Flowers         | ~5          | Free (affiliate) | $0             |
 | Google Shopping      | ~5          | Free (100/day)   | $0             |
 | Claude (Sonnet)      | ~5          | ~$0.01/call      | ~$0.05         |
 | OpenAI (GPT-4o)      | ~5          | ~$0.01/call      | ~$0.05         |
@@ -457,6 +524,7 @@ The following are always excluded from version control (via `.gitignore`):
 | Secret                       | Where to Store                | Notes                          |
 |------------------------------|-------------------------------|--------------------------------|
 | Retailer API keys            | Railway env vars or in-app    | Per-service credentials        |
+| Florist API keys             | Railway env vars or in-app    | Per-service credentials        |
 | LLM API key                  | Railway env vars or in-app    | One provider at a time         |
 | OAuth client secrets         | Railway env vars only         | Never in-app (app-level, not user-level) |
 | `SECRETS_ENCRYPTION_KEY`     | Railway env vars only         | Protects all in-app secrets    |
