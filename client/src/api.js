@@ -98,6 +98,10 @@ export const api = {
   updateAutonomySetting: (id, data) =>
     request(`/settings/autonomy/${id}`, { method: 'PUT', body: data }),
 
+  // Integrations
+  getIntegrations: () => request('/integrations'),
+  getIntegration: (provider) => request(`/integrations/${provider}`),
+
   // Audit
   getAuditLog: (params = {}) => {
     const query = new URLSearchParams(params).toString();

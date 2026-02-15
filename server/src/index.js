@@ -14,6 +14,7 @@ const ordersRouter = require('./routes/orders');
 const notificationsRouter = require('./routes/notifications');
 const settingsRouter = require('./routes/settings');
 const dashboardRouter = require('./routes/dashboard');
+const integrationsRouter = require('./routes/integrations');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -51,6 +52,7 @@ app.use('/api/orders', ordersRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/dashboard', dashboardRouter);
+app.use('/api/integrations', integrationsRouter);
 
 // Serve static frontend in production
 const clientDist = path.join(__dirname, '..', '..', 'client', 'dist');

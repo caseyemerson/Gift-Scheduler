@@ -1,10 +1,47 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../api';
 
+function IntegrationCard({ integration }) {
+  const configured = integration.status === 'configured';
+  return (
+    <div className={`flex items-center justify-between bg-gray-50 dark:bg-gray-800 rounded-lg px-4 py-3 border ${configured ? 'border-green-200 dark:border-green-800' : 'border-gray-200 dark:border-gray-700'}`}>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-sm">{integration.label}</span>
+          {integration.active && (
+            <span className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 px-1.5 py-0.5 rounded">active</span>
+          )}
+        </div>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{integration.description}</p>
+        {configured && (
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+            {Object.entries(integration.variables).filter(([, v]) => v.set).map(([key, v]) => (
+              <span key={key} className="text-xs text-gray-400 dark:text-gray-500 font-mono">{key.split('_').pop().toLowerCase()}: {v.masked}</span>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+        {configured ? (
+          <span className="text-xs font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-2 py-1 rounded">Connected</span>
+        ) : (
+          integration.signupUrl ? (
+            <a href={integration.signupUrl} target="_blank" rel="noopener noreferrer"
+              className="text-xs text-primary-600 dark:text-primary-400 hover:underline">Get API key</a>
+          ) : (
+            <span className="text-xs text-gray-400">Not configured</span>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Settings() {
   const [settings, setSettings] = useState({});
   const [autonomy, setAutonomy] = useState([]);
   const [contacts, setContacts] = useState([]);
+  const [integrations, setIntegrations] = useState(null);
   const [loading, setLoading] = useState(true);
   const [emergencyLoading, setEmergencyLoading] = useState(false);
   const [showAutonomyForm, setShowAutonomyForm] = useState(false);
@@ -16,14 +53,16 @@ export default function Settings() {
 
   async function loadData() {
     try {
-      const [settingsData, autonomyData, contactsData] = await Promise.all([
+      const [settingsData, autonomyData, contactsData, integrationsData] = await Promise.all([
         api.getSettings(),
         api.getAutonomySettings(),
         api.getContacts(),
+        api.getIntegrations(),
       ]);
       setSettings(settingsData);
       setAutonomy(autonomyData);
       setContacts(contactsData);
+      setIntegrations(integrationsData);
     } catch (err) {
       console.error('Failed to load settings:', err);
     } finally {
@@ -84,7 +123,7 @@ export default function Settings() {
       <h1 className="text-2xl font-bold">Settings</h1>
 
       {/* Emergency Stop */}
-      <div className={`card border-2 ${isEmergencyActive ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}>
+      <div className={`card border-2 ${isEmergencyActive ? 'border-red-500 bg-red-50 dark:bg-red-950' : 'border-gray-200 dark:border-gray-700'}`}>
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -93,7 +132,7 @@ export default function Settings() {
               </svg>
               Emergency Stop
             </h2>
-            <p className="text-sm text-gray-600 mt-1">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
               {isEmergencyActive
                 ? 'All purchasing is currently disabled. Pending orders have been cancelled.'
                 : 'Immediately disable all purchasing and cancel pending orders.'}
@@ -117,7 +156,7 @@ export default function Settings() {
           <div className="flex items-center justify-between">
             <div>
               <label className="font-medium">Default Lead Time</label>
-              <p className="text-sm text-gray-500">How many days before an event to start preparations</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">How many days before an event to start preparations</p>
             </div>
             <select className="input w-32" value={settings.default_lead_time_days || '14'}
               onChange={e => handleUpdateLeadTime(e.target.value)}>
@@ -129,27 +168,77 @@ export default function Settings() {
         </div>
       </div>
 
+      {/* Integrations */}
+      {integrations && (
+        <div className="card">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold">Integrations</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Connect to retailers, shopping aggregators, and LLM providers. Set API keys as environment variables in Railway.</p>
+          </div>
+
+          {/* Retailers */}
+          <div className="mb-5">
+            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Retailers</h3>
+            <div className="space-y-2">
+              {integrations.retailers.map(r => (
+                <IntegrationCard key={r.provider} integration={r} />
+              ))}
+            </div>
+          </div>
+
+          {/* Aggregators */}
+          <div className="mb-5">
+            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Shopping Aggregator</h3>
+            <div className="space-y-2">
+              {integrations.aggregators.map(a => (
+                <IntegrationCard key={a.provider} integration={a} />
+              ))}
+            </div>
+          </div>
+
+          {/* LLM */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+              Card Message AI
+              {integrations.llm.active_provider ? '' : ' (using templates)'}
+            </h3>
+            {!integrations.llm.active_provider && (
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-2">
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  No LLM provider configured. Card messages use built-in templates. Add an API key to enable AI-generated messages.
+                </p>
+              </div>
+            )}
+            <div className="space-y-2">
+              {integrations.llm.providers.map(p => (
+                <IntegrationCard key={p.provider} integration={p} />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Autonomy Settings */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-lg font-semibold">Autonomy Settings</h2>
-            <p className="text-sm text-gray-500">Control how much the system can do without your approval</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Control how much the system can do without your approval</p>
           </div>
           <button onClick={() => setShowAutonomyForm(!showAutonomyForm)} className="btn-primary text-sm">
             {showAutonomyForm ? 'Cancel' : '+ Add Rule'}
           </button>
         </div>
 
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
-          <p className="text-sm text-amber-800">
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-4">
+          <p className="text-sm text-amber-800 dark:text-amber-300">
             <strong>MVP Mode:</strong> All purchases require explicit approval regardless of autonomy settings.
             These settings will take effect in future versions.
           </p>
         </div>
 
         {showAutonomyForm && (
-          <form onSubmit={handleAddAutonomy} className="bg-gray-50 rounded-lg p-4 mb-4 space-y-4">
+          <form onSubmit={handleAddAutonomy} className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-4 space-y-4">
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <label className="label">Contact (optional)</label>
@@ -189,24 +278,24 @@ export default function Settings() {
         )}
 
         {autonomy.length === 0 ? (
-          <p className="text-gray-500 text-sm">No autonomy rules configured. Default: manual approval for everything.</p>
+          <p className="text-gray-500 dark:text-gray-400 text-sm">No autonomy rules configured. Default: manual approval for everything.</p>
         ) : (
           <div className="space-y-2">
             {autonomy.map(rule => (
-              <div key={rule.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3">
+              <div key={rule.id} className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 rounded-lg px-4 py-3">
                 <div>
                   <div className="font-medium text-sm">
                     {rule.contact_name || 'All contacts'} / {rule.event_type || 'All types'}
                   </div>
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
                     Level: <span className="capitalize">{rule.level.replace('_', ' ')}</span>
                     {rule.max_budget && ` | Max: $${rule.max_budget}`}
                   </div>
                 </div>
                 <span className={`badge ${
-                  rule.level === 'manual' ? 'bg-gray-100 text-gray-700' :
-                  rule.level === 'auto_recommend' ? 'bg-blue-100 text-blue-700' :
-                  'bg-amber-100 text-amber-700'
+                  rule.level === 'manual' ? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' :
+                  rule.level === 'auto_recommend' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
+                  'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300'
                 }`}>{rule.level.replace('_', ' ')}</span>
               </div>
             ))}
@@ -222,21 +311,21 @@ export default function Settings() {
             <div className="w-3 h-3 bg-gray-400 rounded-full mt-1.5 flex-shrink-0" />
             <div>
               <h3 className="font-medium">Manual (Current MVP)</h3>
-              <p className="text-sm text-gray-600">System generates recommendations and drafts. You approve everything before any action is taken.</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">System generates recommendations and drafts. You approve everything before any action is taken.</p>
             </div>
           </div>
           <div className="flex gap-3">
             <div className="w-3 h-3 bg-blue-400 rounded-full mt-1.5 flex-shrink-0" />
             <div>
               <h3 className="font-medium">Auto Recommend</h3>
-              <p className="text-sm text-gray-600">System automatically generates recommendations when events approach lead time. You still approve purchases.</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">System automatically generates recommendations when events approach lead time. You still approve purchases.</p>
             </div>
           </div>
           <div className="flex gap-3">
             <div className="w-3 h-3 bg-amber-400 rounded-full mt-1.5 flex-shrink-0" />
             <div>
               <h3 className="font-medium">Auto Purchase (Future)</h3>
-              <p className="text-sm text-gray-600">System automatically selects and purchases gifts within defined budget limits. Emergency stop can override at any time.</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">System automatically selects and purchases gifts within defined budget limits. Emergency stop can override at any time.</p>
             </div>
           </div>
         </div>

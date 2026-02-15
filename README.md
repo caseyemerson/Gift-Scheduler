@@ -10,8 +10,9 @@ A full-stack application that helps you select, prepare, and send appropriate gi
 - **Event Tracking** — Birthdays, anniversaries, holidays, and other dates with configurable lead times and recurring support
 - **Dark Mode** — Automatically follows your device's light/dark preference
 - **Budget Management** — Category-based defaults with per-person overrides
-- **Gift Recommendations** — Scored suggestions based on interests, budget, and delivery feasibility
-- **Card Message Drafting** — Auto-generated messages in 5 tones (warm, formal, humorous, heartfelt, casual)
+- **Integrations** — Connect to retailers (Amazon, Etsy, Walmart), Google Shopping, and LLM providers (Claude, ChatGPT, Gemini) via the Settings page
+- **Gift Recommendations** — Scored suggestions from retailer APIs or built-in catalog, based on interests, budget, and delivery feasibility
+- **Card Message Drafting** — AI-generated or template-based messages in 5 tones (warm, formal, humorous, heartfelt, casual)
 - **Approval Workflow** — Every purchase requires explicit approval before proceeding
 - **Order Tracking** — Status management from ordered through delivered, with issue reporting
 - **Audit Log** — Full history of all decisions, approvals, and changes
@@ -103,6 +104,7 @@ Gift-Scheduler/
 │   │   │   ├── orders.js       # Order tracking
 │   │   │   ├── notifications.js# Notification system
 │   │   │   ├── settings.js     # Global settings and autonomy
+│   │   │   ├── integrations.js # Integration status and config
 │   │   │   └── dashboard.js    # Dashboard aggregation
 │   │   └── __tests__/
 │   │       └── api.test.js     # Server tests
@@ -186,6 +188,39 @@ Budgets can be changed globally or overridden per contact.
 | GET    | `/api/settings/audit`           | Query audit log                  |
 | GET    | `/api/settings/autonomy`        | List autonomy rules              |
 | POST   | `/api/settings/autonomy`        | Create autonomy rule             |
+| GET    | `/api/integrations`             | List all integration statuses    |
+| GET    | `/api/integrations/:provider`   | Get status for one provider      |
+
+## Integrations
+
+Gift Scheduler can optionally connect to external services. All integrations are configured via environment variables (set in Railway or a local `.env` file). When no keys are configured, the app uses its built-in mock catalog and message templates.
+
+| Category         | Services                          | Purpose                                  |
+|------------------|-----------------------------------|------------------------------------------|
+| Retailers        | Amazon, Etsy, Walmart             | Product search, pricing, and ordering    |
+| Aggregator       | Google Shopping                   | Cross-retailer product comparison        |
+| LLM Providers    | Claude, ChatGPT, Gemini, OpenAI-compatible | AI-generated card messages      |
+
+See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) for full setup instructions, environment variable reference, OAuth connector architecture, API usage estimates, and security details.
+
+### Quick Environment Variable Reference
+
+```bash
+# Retailers
+AMAZON_API_KEY=          AMAZON_API_SECRET=       AMAZON_PARTNER_TAG=
+ETSY_API_KEY=
+WALMART_API_KEY=
+
+# Shopping aggregator
+GOOGLE_SHOPPING_API_KEY= GOOGLE_SHOPPING_ENGINE_ID=
+
+# LLM (configure one)
+LLM_PROVIDER=            # claude | openai | gemini | openai_compatible
+ANTHROPIC_API_KEY=       ANTHROPIC_MODEL=
+OPENAI_API_KEY=          OPENAI_MODEL=
+GEMINI_API_KEY=          GEMINI_MODEL=
+OPENAI_COMPATIBLE_BASE_URL= OPENAI_COMPATIBLE_API_KEY= OPENAI_COMPATIBLE_MODEL=
+```
 
 ## License
 
