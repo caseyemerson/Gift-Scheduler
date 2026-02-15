@@ -29,6 +29,30 @@ const INTEGRATIONS = {
     requiredVars: ['WALMART_API_KEY'],
     signupUrl: 'https://affiliates.walmart.com/',
   },
+  '1800flowers': {
+    label: '1-800-Flowers',
+    category: 'florist',
+    description: 'Order flower arrangements and floral gifts via 1-800-Flowers API',
+    envVars: ['FLOWERS1800_API_KEY'],
+    requiredVars: ['FLOWERS1800_API_KEY'],
+    signupUrl: 'https://www.1800flowers.com/affiliate-program',
+  },
+  sendflowers: {
+    label: 'SendFlowers',
+    category: 'florist',
+    description: 'Browse and order flower deliveries via SendFlowers API',
+    envVars: ['SENDFLOWERS_API_KEY'],
+    requiredVars: ['SENDFLOWERS_API_KEY'],
+    signupUrl: 'https://www.sendflowers.com/affiliate',
+  },
+  avasflowers: {
+    label: 'Avas Flowers',
+    category: 'florist',
+    description: 'Order hand-delivered floral arrangements via Avas Flowers API',
+    envVars: ['AVASFLOWERS_API_KEY'],
+    requiredVars: ['AVASFLOWERS_API_KEY'],
+    signupUrl: 'https://www.avasflowers.net/affiliate',
+  },
   google_shopping: {
     label: 'Google Shopping',
     category: 'aggregator',
@@ -131,6 +155,7 @@ router.get('/', (req, res) => {
 
   const categories = {
     retailers: [],
+    florists: [],
     aggregators: [],
     llm: [],
   };
@@ -143,12 +168,14 @@ router.get('/', (req, res) => {
     }
 
     if (def.category === 'retailer') categories.retailers.push(status);
+    else if (def.category === 'florist') categories.florists.push(status);
     else if (def.category === 'aggregator') categories.aggregators.push(status);
     else if (def.category === 'llm') categories.llm.push(status);
   }
 
   res.json({
     retailers: categories.retailers,
+    florists: categories.florists,
     aggregators: categories.aggregators,
     llm: {
       active_provider: activeLlm,

@@ -42,6 +42,8 @@ export default function Settings() {
   const [autonomy, setAutonomy] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [integrations, setIntegrations] = useState(null);
+  const [backupStatus, setBackupStatus] = useState(null);
+  const [restoreLoading, setRestoreLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [emergencyLoading, setEmergencyLoading] = useState(false);
   const [showAutonomyForm, setShowAutonomyForm] = useState(false);
@@ -53,16 +55,18 @@ export default function Settings() {
 
   async function loadData() {
     try {
-      const [settingsData, autonomyData, contactsData, integrationsData] = await Promise.all([
+      const [settingsData, autonomyData, contactsData, integrationsData, backupData] = await Promise.all([
         api.getSettings(),
         api.getAutonomySettings(),
         api.getContacts(),
         api.getIntegrations(),
+        api.getBackupStatus(),
       ]);
       setSettings(settingsData);
       setAutonomy(autonomyData);
       setContacts(contactsData);
       setIntegrations(integrationsData);
+      setBackupStatus(backupData);
     } catch (err) {
       console.error('Failed to load settings:', err);
     } finally {
@@ -111,6 +115,30 @@ export default function Settings() {
       loadData();
     } catch (err) {
       alert(err.message);
+    }
+  }
+
+  async function handleRestore(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!confirm('Restore from backup? This will replace ALL current data with the backup contents.')) {
+      e.target.value = '';
+      return;
+    }
+
+    setRestoreLoading(true);
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      const result = await api.restoreBackup(data);
+      alert(`Restored ${result.total_rows} rows successfully.`);
+      loadData();
+    } catch (err) {
+      alert('Restore failed: ' + err.message);
+    } finally {
+      setRestoreLoading(false);
+      e.target.value = '';
     }
   }
 
@@ -173,7 +201,7 @@ export default function Settings() {
         <div className="card">
           <div className="mb-4">
             <h2 className="text-lg font-semibold">Integrations</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Connect to retailers, shopping aggregators, and LLM providers. Set API keys as environment variables in Railway.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Connect to retailers, florists, shopping aggregators, and LLM providers. Set API keys as environment variables in Railway.</p>
           </div>
 
           {/* Retailers */}
@@ -182,6 +210,16 @@ export default function Settings() {
             <div className="space-y-2">
               {integrations.retailers.map(r => (
                 <IntegrationCard key={r.provider} integration={r} />
+              ))}
+            </div>
+          </div>
+
+          {/* Florists */}
+          <div className="mb-5">
+            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Florists</h3>
+            <div className="space-y-2">
+              {integrations.florists.map(f => (
+                <IntegrationCard key={f.provider} integration={f} />
               ))}
             </div>
           </div>
@@ -217,6 +255,39 @@ export default function Settings() {
           </div>
         </div>
       )}
+
+      {/* Backup & Restore */}
+      <div className="card">
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold">Backup & Restore</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Export your data for safekeeping or restore from a previous backup.</p>
+        </div>
+
+        {backupStatus && (
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg px-4 py-3 mb-4">
+            <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+              <span className="text-gray-500 dark:text-gray-400">Database: <span className="font-medium text-gray-700 dark:text-gray-300">{backupStatus.file_size_human || 'N/A'}</span></span>
+              <span className="text-gray-500 dark:text-gray-400">Contacts: <span className="font-medium text-gray-700 dark:text-gray-300">{backupStatus.table_counts?.contacts || 0}</span></span>
+              <span className="text-gray-500 dark:text-gray-400">Events: <span className="font-medium text-gray-700 dark:text-gray-300">{backupStatus.table_counts?.events || 0}</span></span>
+              <span className="text-gray-500 dark:text-gray-400">Orders: <span className="font-medium text-gray-700 dark:text-gray-300">{backupStatus.table_counts?.orders || 0}</span></span>
+              <span className="text-gray-500 dark:text-gray-400">Total rows: <span className="font-medium text-gray-700 dark:text-gray-300">{backupStatus.total_rows || 0}</span></span>
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-3">
+          <a href="/api/backup/export" download className="btn-primary text-sm">
+            Export JSON
+          </a>
+          <a href="/api/backup/download" download className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+            Download SQLite
+          </a>
+          <label className={`px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer ${restoreLoading ? 'opacity-50 pointer-events-none' : ''}`}>
+            {restoreLoading ? 'Restoring...' : 'Restore from JSON'}
+            <input type="file" accept=".json" onChange={handleRestore} className="hidden" disabled={restoreLoading} />
+          </label>
+        </div>
+      </div>
 
       {/* Autonomy Settings */}
       <div className="card">

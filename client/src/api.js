@@ -102,6 +102,10 @@ export const api = {
   getIntegrations: () => request('/integrations'),
   getIntegration: (provider) => request(`/integrations/${provider}`),
 
+  // Backup
+  getBackupStatus: () => request('/backup/status'),
+  restoreBackup: (data) => request('/backup/restore', { method: 'POST', body: data }),
+
   // Audit
   getAuditLog: (params = {}) => {
     const query = new URLSearchParams(params).toString();
