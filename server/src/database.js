@@ -25,6 +25,8 @@ function initializeSchema(database) {
       relationship TEXT NOT NULL,
       birthday TEXT,
       anniversary TEXT,
+      other_date TEXT,
+      default_gifts TEXT DEFAULT '{"card":true,"gift":false,"flowers":false}',
       preferences TEXT DEFAULT '{}',
       constraints TEXT DEFAULT '{}',
       notes TEXT DEFAULT '',
@@ -168,10 +170,10 @@ function initializeSchema(database) {
 
     -- Insert default budgets if not exist
     INSERT OR IGNORE INTO budgets (id, category, default_amount) VALUES
-      ('budget_birthday', 'birthday', 50.00),
-      ('budget_anniversary', 'anniversary', 75.00),
-      ('budget_holiday', 'holiday', 40.00),
-      ('budget_other', 'other', 30.00);
+      ('budget_birthday', 'birthday', 30.00),
+      ('budget_anniversary', 'anniversary', 50.00),
+      ('budget_holiday', 'holiday', 30.00),
+      ('budget_other', 'other', 20.00);
 
     -- Insert default global settings
     INSERT OR IGNORE INTO global_settings (key, value) VALUES
@@ -191,9 +193,11 @@ function initializeSchema(database) {
     CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
   `);
 
-  // Migration: add birthday and anniversary columns to existing contacts table
+  // Migrations: add columns to existing contacts table
   try { database.exec('ALTER TABLE contacts ADD COLUMN birthday TEXT'); } catch {}
   try { database.exec('ALTER TABLE contacts ADD COLUMN anniversary TEXT'); } catch {}
+  try { database.exec('ALTER TABLE contacts ADD COLUMN other_date TEXT'); } catch {}
+  try { database.exec("ALTER TABLE contacts ADD COLUMN default_gifts TEXT DEFAULT '{\"card\":true,\"gift\":false,\"flowers\":false}'"); } catch {}
 }
 
 function closeDb() {

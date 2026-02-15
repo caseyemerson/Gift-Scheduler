@@ -2,20 +2,24 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 
+const emptyForm = {
+  name: '', email: '', phone: '', relationship: 'friend',
+  birthday: '', anniversary: '', other_date: '',
+  default_gifts: { card: true, gift: false, flowers: false },
+  preferences: { interests: [], preferred_tones: ['warm'] },
+  constraints: { avoid_categories: [] },
+  notes: '',
+};
+
 export default function Contacts() {
   const [contacts, setContacts] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [loading, setLoading] = useState(true);
   const [importResult, setImportResult] = useState(null);
+  const [dateError, setDateError] = useState('');
   const fileInputRef = useRef(null);
-  const [form, setForm] = useState({
-    name: '', email: '', phone: '', relationship: 'friend',
-    birthday: '', anniversary: '',
-    preferences: { interests: [], preferred_tones: ['warm'] },
-    constraints: { avoid_categories: [] },
-    notes: '',
-  });
+  const [form, setForm] = useState({ ...emptyForm });
 
   useEffect(() => { loadContacts(); }, []);
 
@@ -32,16 +36,15 @@ export default function Contacts() {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (!form.birthday && !form.anniversary && !form.other_date) {
+      setDateError('At least one date (birthday, anniversary, or other) is required.');
+      return;
+    }
+    setDateError('');
     try {
       await api.createContact(form);
       setShowForm(false);
-      setForm({
-        name: '', email: '', phone: '', relationship: 'friend',
-        birthday: '', anniversary: '',
-        preferences: { interests: [], preferred_tones: ['warm'] },
-        constraints: { avoid_categories: [] },
-        notes: '',
-      });
+      setForm({ ...emptyForm });
       loadContacts();
     } catch (err) {
       alert(err.message);
@@ -73,6 +76,7 @@ export default function Contacts() {
         relationship: obj.relationship || 'friend',
         birthday: obj.birthday || obj.bday || obj['birth date'] || '',
         anniversary: obj.anniversary || '',
+        other_date: obj.other_date || obj['other date'] || '',
         notes: obj.notes || '',
       };
     }).filter(c => c.name);
@@ -95,7 +99,6 @@ export default function Contacts() {
       const bday = get('BDAY');
       let birthday = '';
       if (bday) {
-        // vCard dates can be YYYYMMDD or YYYY-MM-DD
         const clean = bday.replace(/-/g, '');
         if (clean.length === 8) {
           birthday = `${clean.slice(0, 4)}-${clean.slice(4, 6)}-${clean.slice(6, 8)}`;
@@ -142,7 +145,7 @@ export default function Contacts() {
           <button onClick={() => { setShowImport(!showImport); setShowForm(false); setImportResult(null); }} className="btn-secondary">
             {showImport ? 'Cancel' : 'Import'}
           </button>
-          <button onClick={() => { setShowForm(!showForm); setShowImport(false); }} className="btn-primary">
+          <button onClick={() => { setShowForm(!showForm); setShowImport(false); setDateError(''); }} className="btn-primary">
             {showForm ? 'Cancel' : '+ Add Contact'}
           </button>
         </div>
@@ -159,7 +162,7 @@ export default function Contacts() {
             <div>
               <p className="text-sm font-medium mb-2">CSV format (first row must be headers):</p>
               <code className="text-xs bg-gray-100 dark:bg-gray-700 rounded px-2 py-1 block">
-                name, email, phone, relationship, birthday, anniversary, notes
+                name, email, phone, relationship, birthday, anniversary, other_date, notes
               </code>
             </div>
             <div>
@@ -219,15 +222,61 @@ export default function Contacts() {
               <label className="label">Phone</label>
               <input className="input" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} />
             </div>
-            <div>
-              <label className="label">Birthday</label>
-              <input className="input" type="date" value={form.birthday} onChange={e => setForm({...form, birthday: e.target.value})} />
+          </div>
+
+          {/* Dates */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <label className="label mb-0">Dates</label>
+              <span className="text-xs text-gray-500 dark:text-gray-400">(at least one required)</span>
             </div>
-            <div>
-              <label className="label">Anniversary</label>
-              <input className="input" type="date" value={form.anniversary} onChange={e => setForm({...form, anniversary: e.target.value})} />
+            {dateError && (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm rounded-lg px-3 py-2 mb-3">
+                {dateError}
+              </div>
+            )}
+            <div className="grid md:grid-cols-3 gap-4">
+              <div>
+                <label className="label">Birthday</label>
+                <input className="input" type="date" value={form.birthday} onChange={e => { setForm({...form, birthday: e.target.value}); setDateError(''); }} />
+              </div>
+              <div>
+                <label className="label">Anniversary</label>
+                <input className="input" type="date" value={form.anniversary} onChange={e => { setForm({...form, anniversary: e.target.value}); setDateError(''); }} />
+              </div>
+              <div>
+                <label className="label">Other</label>
+                <input className="input" type="date" value={form.other_date} onChange={e => { setForm({...form, other_date: e.target.value}); setDateError(''); }} />
+              </div>
             </div>
           </div>
+
+          {/* Default gift options */}
+          <div>
+            <label className="label">Default options for events</label>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Select what to send by default for this contact's events</p>
+            <div className="flex gap-6">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={form.default_gifts.card}
+                  onChange={e => setForm({...form, default_gifts: {...form.default_gifts, card: e.target.checked}})}
+                  className="w-4 h-4 text-primary-600 rounded" />
+                <span className="text-sm">Card</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={form.default_gifts.gift}
+                  onChange={e => setForm({...form, default_gifts: {...form.default_gifts, gift: e.target.checked}})}
+                  className="w-4 h-4 text-primary-600 rounded" />
+                <span className="text-sm">Gift</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={form.default_gifts.flowers}
+                  onChange={e => setForm({...form, default_gifts: {...form.default_gifts, flowers: e.target.checked}})}
+                  className="w-4 h-4 text-primary-600 rounded" />
+                <span className="text-sm">Flowers</span>
+              </label>
+            </div>
+          </div>
+
           <div>
             <label className="label">Interests</label>
             <div className="flex flex-wrap gap-2">
@@ -280,14 +329,23 @@ export default function Contacts() {
                 </button>
               </div>
               {contact.email && <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">{contact.email}</p>}
-              {(contact.birthday || contact.anniversary) && (
-                <div className="flex gap-3 mt-2 text-xs text-gray-500 dark:text-gray-400">
+              {(contact.birthday || contact.anniversary || contact.other_date) && (
+                <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs text-gray-500 dark:text-gray-400">
                   {contact.birthday && <span>Birthday: {new Date(contact.birthday + 'T00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>}
                   {contact.anniversary && <span>Anniversary: {new Date(contact.anniversary + 'T00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>}
+                  {contact.other_date && <span>Other: {new Date(contact.other_date + 'T00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>}
+                </div>
+              )}
+              {/* Default gift options badges */}
+              {contact.default_gifts && (
+                <div className="flex gap-1 mt-2">
+                  {contact.default_gifts.card && <span className="badge bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">Card</span>}
+                  {contact.default_gifts.gift && <span className="badge bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">Gift</span>}
+                  {contact.default_gifts.flowers && <span className="badge bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400">Flowers</span>}
                 </div>
               )}
               {contact.preferences?.interests?.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-3">
+                <div className="flex flex-wrap gap-1 mt-2">
                   {contact.preferences.interests.slice(0, 4).map(i => (
                     <span key={i} className="badge bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">{i}</span>
                   ))}
