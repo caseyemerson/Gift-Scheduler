@@ -5,6 +5,39 @@ const { logAudit } = require('../audit');
 
 const router = express.Router();
 
+// Helper: create events for a contact based on their dates
+function createEventsForContact(db, contactId, contactName, { birthday, anniversary, other_date }) {
+  const insertEvent = db.prepare(`
+    INSERT INTO events (id, contact_id, type, name, date, recurring, lead_time_days, status)
+    VALUES (?, ?, ?, ?, ?, 1, 14, 'upcoming')
+  `);
+
+  const created = [];
+
+  if (birthday) {
+    const eventId = uuidv4();
+    insertEvent.run(eventId, contactId, 'birthday', `${contactName}'s Birthday`, birthday);
+    logAudit('create', 'event', eventId, { name: `${contactName}'s Birthday`, auto_created: true });
+    created.push(eventId);
+  }
+
+  if (anniversary) {
+    const eventId = uuidv4();
+    insertEvent.run(eventId, contactId, 'anniversary', `${contactName}'s Anniversary`, anniversary);
+    logAudit('create', 'event', eventId, { name: `${contactName}'s Anniversary`, auto_created: true });
+    created.push(eventId);
+  }
+
+  if (other_date) {
+    const eventId = uuidv4();
+    insertEvent.run(eventId, contactId, 'other', `${contactName}'s Special Day`, other_date);
+    logAudit('create', 'event', eventId, { name: `${contactName}'s Special Day`, auto_created: true });
+    created.push(eventId);
+  }
+
+  return created;
+}
+
 // List all contacts
 router.get('/', (req, res) => {
   const db = getDb();
@@ -13,6 +46,7 @@ router.get('/', (req, res) => {
     ...c,
     preferences: JSON.parse(c.preferences || '{}'),
     constraints: JSON.parse(c.constraints || '{}'),
+    default_gifts: JSON.parse(c.default_gifts || '{"card":true,"gift":false,"flowers":false}'),
   }));
   res.json(parsed);
 });
@@ -36,6 +70,7 @@ router.get('/:id', (req, res) => {
     ...contact,
     preferences: JSON.parse(contact.preferences || '{}'),
     constraints: JSON.parse(contact.constraints || '{}'),
+    default_gifts: JSON.parse(contact.default_gifts || '{"card":true,"gift":false,"flowers":false}'),
     events,
     giftHistory,
   });
@@ -44,26 +79,38 @@ router.get('/:id', (req, res) => {
 // Create contact
 router.post('/', (req, res) => {
   const db = getDb();
-  const { name, email, phone, relationship, birthday, anniversary, preferences, constraints, notes } = req.body;
+  const { name, email, phone, relationship, birthday, anniversary, other_date, default_gifts, preferences, constraints, notes } = req.body;
 
   if (!name || !relationship) {
     return res.status(400).json({ error: 'Name and relationship are required' });
   }
 
+  if (!birthday && !anniversary && !other_date) {
+    return res.status(400).json({ error: 'At least one date (birthday, anniversary, or other) is required' });
+  }
+
   const id = uuidv4();
   db.prepare(`
-    INSERT INTO contacts (id, name, email, phone, relationship, birthday, anniversary, preferences, constraints, notes)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, name, email || null, phone || null, relationship, birthday || null, anniversary || null,
+    INSERT INTO contacts (id, name, email, phone, relationship, birthday, anniversary, other_date, default_gifts, preferences, constraints, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, name, email || null, phone || null, relationship,
+    birthday || null, anniversary || null, other_date || null,
+    JSON.stringify(default_gifts || { card: true, gift: false, flowers: false }),
     JSON.stringify(preferences || {}), JSON.stringify(constraints || {}), notes || '');
 
   logAudit('create', 'contact', id, { name, relationship });
 
+  // Auto-create events for each date
+  createEventsForContact(db, id, name, { birthday, anniversary, other_date });
+
   const contact = db.prepare('SELECT * FROM contacts WHERE id = ?').get(id);
+  const events = db.prepare('SELECT * FROM events WHERE contact_id = ? ORDER BY date DESC').all(id);
   res.status(201).json({
     ...contact,
     preferences: JSON.parse(contact.preferences || '{}'),
     constraints: JSON.parse(contact.constraints || '{}'),
+    default_gifts: JSON.parse(contact.default_gifts || '{"card":true,"gift":false,"flowers":false}'),
+    events,
   });
 });
 
@@ -73,7 +120,7 @@ router.put('/:id', (req, res) => {
   const existing = db.prepare('SELECT * FROM contacts WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Contact not found' });
 
-  const { name, email, phone, relationship, birthday, anniversary, preferences, constraints, notes } = req.body;
+  const { name, email, phone, relationship, birthday, anniversary, other_date, default_gifts, preferences, constraints, notes } = req.body;
 
   db.prepare(`
     UPDATE contacts SET
@@ -83,6 +130,8 @@ router.put('/:id', (req, res) => {
       relationship = COALESCE(?, relationship),
       birthday = ?,
       anniversary = ?,
+      other_date = ?,
+      default_gifts = COALESCE(?, default_gifts),
       preferences = COALESCE(?, preferences),
       constraints = COALESCE(?, constraints),
       notes = COALESCE(?, notes),
@@ -93,6 +142,8 @@ router.put('/:id', (req, res) => {
     relationship || null,
     birthday !== undefined ? (birthday || null) : existing.birthday,
     anniversary !== undefined ? (anniversary || null) : existing.anniversary,
+    other_date !== undefined ? (other_date || null) : existing.other_date,
+    default_gifts ? JSON.stringify(default_gifts) : null,
     preferences ? JSON.stringify(preferences) : null,
     constraints ? JSON.stringify(constraints) : null,
     notes !== undefined ? notes : null,
@@ -106,13 +157,14 @@ router.put('/:id', (req, res) => {
     ...updated,
     preferences: JSON.parse(updated.preferences || '{}'),
     constraints: JSON.parse(updated.constraints || '{}'),
+    default_gifts: JSON.parse(updated.default_gifts || '{"card":true,"gift":false,"flowers":false}'),
   });
 });
 
 // Bulk import contacts from CSV or vCard data
 router.post('/import', (req, res) => {
   const db = getDb();
-  const { contacts: importData, format } = req.body;
+  const { contacts: importData } = req.body;
 
   if (!importData || !Array.isArray(importData) || importData.length === 0) {
     return res.status(400).json({ error: 'No contacts provided for import' });
@@ -122,8 +174,8 @@ router.post('/import', (req, res) => {
   const errors = [];
 
   const insertStmt = db.prepare(`
-    INSERT INTO contacts (id, name, email, phone, relationship, birthday, anniversary, preferences, constraints, notes)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO contacts (id, name, email, phone, relationship, birthday, anniversary, other_date, default_gifts, preferences, constraints, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const importMany = db.transaction((rows) => {
@@ -132,8 +184,10 @@ router.post('/import', (req, res) => {
         errors.push({ contact, error: 'Name is required' });
         continue;
       }
+      // For import, we don't require dates since the data may be sparse
       const id = uuidv4();
       try {
+        const defaultGifts = contact.default_gifts || { card: true, gift: false, flowers: false };
         insertStmt.run(
           id,
           contact.name,
@@ -142,10 +196,18 @@ router.post('/import', (req, res) => {
           contact.relationship || 'friend',
           contact.birthday || null,
           contact.anniversary || null,
+          contact.other_date || null,
+          JSON.stringify(defaultGifts),
           JSON.stringify(contact.preferences || {}),
           JSON.stringify(contact.constraints || {}),
           contact.notes || ''
         );
+        // Auto-create events for imported contacts that have dates
+        createEventsForContact(db, id, contact.name, {
+          birthday: contact.birthday,
+          anniversary: contact.anniversary,
+          other_date: contact.other_date,
+        });
         imported.push({ id, name: contact.name });
         logAudit('create', 'contact', id, { name: contact.name, source: 'bulk_import' });
       } catch (err) {

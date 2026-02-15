@@ -25,6 +25,8 @@ function initializeSchema(database) {
       relationship TEXT NOT NULL,
       birthday TEXT,
       anniversary TEXT,
+      other_date TEXT,
+      default_gifts TEXT DEFAULT '{"card":true,"gift":false,"flowers":false}',
       preferences TEXT DEFAULT '{}',
       constraints TEXT DEFAULT '{}',
       notes TEXT DEFAULT '',
@@ -191,9 +193,11 @@ function initializeSchema(database) {
     CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
   `);
 
-  // Migration: add birthday and anniversary columns to existing contacts table
+  // Migrations: add columns to existing contacts table
   try { database.exec('ALTER TABLE contacts ADD COLUMN birthday TEXT'); } catch {}
   try { database.exec('ALTER TABLE contacts ADD COLUMN anniversary TEXT'); } catch {}
+  try { database.exec('ALTER TABLE contacts ADD COLUMN other_date TEXT'); } catch {}
+  try { database.exec("ALTER TABLE contacts ADD COLUMN default_gifts TEXT DEFAULT '{\"card\":true,\"gift\":false,\"flowers\":false}'"); } catch {}
 }
 
 function closeDb() {

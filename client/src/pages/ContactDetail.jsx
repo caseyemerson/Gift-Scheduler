@@ -16,7 +16,10 @@ export default function ContactDetail() {
     try {
       const data = await api.getContact(id);
       setContact(data);
-      setForm(data);
+      setForm({
+        ...data,
+        default_gifts: data.default_gifts || { card: true, gift: false, flowers: false },
+      });
     } catch (err) {
       console.error('Failed to load contact:', err);
     } finally {
@@ -33,6 +36,8 @@ export default function ContactDetail() {
         relationship: form.relationship,
         birthday: form.birthday || '',
         anniversary: form.anniversary || '',
+        other_date: form.other_date || '',
+        default_gifts: form.default_gifts,
         preferences: form.preferences,
         constraints: form.constraints,
         notes: form.notes,
@@ -45,7 +50,7 @@ export default function ContactDetail() {
   }
 
   async function handleDelete() {
-    if (!confirm(`Delete "${contact.name}"? This cannot be undone.`)) return;
+    if (!confirm(`Delete "${contact.name}"? This will also delete all their events.`)) return;
     try {
       await api.deleteContact(id);
       navigate('/contacts');
@@ -58,6 +63,7 @@ export default function ContactDetail() {
   if (!contact) return <div className="text-center py-12 text-gray-500 dark:text-gray-400">Contact not found</div>;
 
   const interestOptions = ['tech', 'books', 'food', 'coffee', 'music', 'fitness', 'home', 'self-care', 'fashion', 'games', 'plants', 'art', 'wine', 'cooking', 'travel'];
+  const defaultGifts = contact.default_gifts || { card: false, gift: false, flowers: false };
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -77,7 +83,7 @@ export default function ContactDetail() {
             {editing ? (
               <>
                 <button onClick={handleSave} className="btn-primary">Save</button>
-                <button onClick={() => { setEditing(false); setForm(contact); }} className="btn-secondary">Cancel</button>
+                <button onClick={() => { setEditing(false); setForm({ ...contact, default_gifts: contact.default_gifts || { card: true, gift: false, flowers: false } }); }} className="btn-secondary">Cancel</button>
               </>
             ) : (
               <>
@@ -121,6 +127,50 @@ export default function ContactDetail() {
               <p className="text-gray-700 dark:text-gray-300">{contact.anniversary ? new Date(contact.anniversary + 'T00:00').toLocaleDateString() : 'Not set'}</p>
             )}
           </div>
+          <div>
+            <label className="label">Other Date</label>
+            {editing ? (
+              <input className="input" type="date" value={form.other_date || ''} onChange={e => setForm({...form, other_date: e.target.value})} />
+            ) : (
+              <p className="text-gray-700 dark:text-gray-300">{contact.other_date ? new Date(contact.other_date + 'T00:00').toLocaleDateString() : 'Not set'}</p>
+            )}
+          </div>
+        </div>
+
+        {/* Default gift options */}
+        <div className="mt-4">
+          <label className="label">Default options for events</label>
+          {editing ? (
+            <div className="flex gap-6 mt-1">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={form.default_gifts?.card || false}
+                  onChange={e => setForm({...form, default_gifts: {...form.default_gifts, card: e.target.checked}})}
+                  className="w-4 h-4 text-primary-600 rounded" />
+                <span className="text-sm">Card</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={form.default_gifts?.gift || false}
+                  onChange={e => setForm({...form, default_gifts: {...form.default_gifts, gift: e.target.checked}})}
+                  className="w-4 h-4 text-primary-600 rounded" />
+                <span className="text-sm">Gift</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={form.default_gifts?.flowers || false}
+                  onChange={e => setForm({...form, default_gifts: {...form.default_gifts, flowers: e.target.checked}})}
+                  className="w-4 h-4 text-primary-600 rounded" />
+                <span className="text-sm">Flowers</span>
+              </label>
+            </div>
+          ) : (
+            <div className="flex gap-2 mt-1">
+              {defaultGifts.card && <span className="badge bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">Card</span>}
+              {defaultGifts.gift && <span className="badge bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">Gift</span>}
+              {defaultGifts.flowers && <span className="badge bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400">Flowers</span>}
+              {!defaultGifts.card && !defaultGifts.gift && !defaultGifts.flowers && (
+                <span className="text-sm text-gray-500 dark:text-gray-400">None set</span>
+              )}
+            </div>
+          )}
         </div>
 
         {editing && (
@@ -171,7 +221,7 @@ export default function ContactDetail() {
       <div className="card mb-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Events</h2>
-          <Link to={`/events?contact=${id}`} className="btn-primary text-sm">+ Add Event</Link>
+          <Link to="/events" className="btn-primary text-sm">+ Add Event</Link>
         </div>
         {contact.events?.length === 0 ? (
           <p className="text-gray-500 dark:text-gray-400 text-sm">No events for this contact</p>
