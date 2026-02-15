@@ -170,6 +170,13 @@ router.post('/import', (req, res) => {
     return res.status(400).json({ error: 'No contacts provided for import' });
   }
 
+  const MAX_IMPORT_BATCH = 500;
+  if (importData.length > MAX_IMPORT_BATCH) {
+    return res.status(400).json({
+      error: `Import batch too large. Maximum ${MAX_IMPORT_BATCH} contacts per request (received ${importData.length}).`,
+    });
+  }
+
   const imported = [];
   const errors = [];
 
