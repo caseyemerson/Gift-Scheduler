@@ -2,6 +2,7 @@ const express = require('express');
 const fs = require('fs');
 const { getDb, DB_PATH } = require('../database');
 const { logAudit } = require('../audit');
+const { requireAdmin } = require('../middleware');
 const { v4: uuidv4 } = require('uuid');
 
 const router = express.Router();
@@ -22,8 +23,25 @@ const EXPORT_TABLES = [
   'audit_log',
 ];
 
-// GET /api/backup/export — export all data as JSON
-router.get('/export', (req, res) => {
+// Schema allowlist: only these columns are permitted during restore.
+// This prevents SQL injection via attacker-controlled column names.
+const ALLOWED_COLUMNS = {
+  contacts: ['id', 'name', 'email', 'phone', 'relationship', 'birthday', 'anniversary', 'other_date', 'default_gifts', 'preferences', 'constraints', 'notes', 'created_at', 'updated_at'],
+  events: ['id', 'contact_id', 'type', 'name', 'date', 'recurring', 'lead_time_days', 'status', 'created_at', 'updated_at'],
+  budgets: ['id', 'category', 'default_amount', 'created_at', 'updated_at'],
+  budget_overrides: ['id', 'budget_id', 'contact_id', 'amount', 'created_at', 'updated_at'],
+  gift_recommendations: ['id', 'event_id', 'name', 'description', 'price', 'retailer', 'url', 'image_url', 'in_stock', 'estimated_delivery', 'reasoning', 'status', 'created_at'],
+  card_messages: ['id', 'event_id', 'tone', 'message', 'selected', 'created_at'],
+  approvals: ['id', 'event_id', 'gift_recommendation_id', 'card_message_id', 'approved_by', 'status', 'notes', 'created_at'],
+  orders: ['id', 'gift_recommendation_id', 'event_id', 'approval_id', 'status', 'tracking_url', 'order_reference', 'ordered_at', 'estimated_delivery', 'actual_delivery', 'issue_description', 'created_at', 'updated_at'],
+  autonomy_settings: ['id', 'contact_id', 'event_type', 'level', 'max_budget', 'enabled', 'created_at', 'updated_at'],
+  notifications: ['id', 'event_id', 'order_id', 'type', 'message', 'read', 'created_at'],
+  global_settings: ['key', 'value', 'updated_at'],
+  audit_log: ['id', 'action', 'entity_type', 'entity_id', 'details', 'performed_by', 'created_at'],
+};
+
+// GET /api/backup/export — export all data as JSON (admin only)
+router.get('/export', requireAdmin, (req, res) => {
   const db = getDb();
   const data = { version: 1, exported_at: new Date().toISOString(), tables: {} };
 
@@ -41,8 +59,8 @@ router.get('/export', (req, res) => {
   res.json(data);
 });
 
-// GET /api/backup/download — download the raw SQLite database file
-router.get('/download', (req, res) => {
+// GET /api/backup/download — download the raw SQLite database file (admin only)
+router.get('/download', requireAdmin, (req, res) => {
   const db = getDb();
 
   // Checkpoint WAL to ensure the .db file has all data
@@ -62,8 +80,8 @@ router.get('/download', (req, res) => {
   stream.pipe(res);
 });
 
-// POST /api/backup/restore — restore from a JSON export
-router.post('/restore', (req, res) => {
+// POST /api/backup/restore — restore from a JSON export (admin only)
+router.post('/restore', requireAdmin, (req, res) => {
   const data = req.body;
 
   if (!data || !data.tables || !data.version) {
@@ -89,31 +107,41 @@ router.post('/restore', (req, res) => {
     // Temporarily disable foreign keys for the restore
     db.pragma('foreign_keys = OFF');
 
-    // Clear all tables in reverse dependency order
-    for (const table of clearOrder) {
-      db.prepare(`DELETE FROM ${table}`).run();
-    }
-
-    // Insert data in forward dependency order
-    let totalRows = 0;
-    for (const table of EXPORT_TABLES) {
-      const rows = data.tables[table];
-      if (!rows || rows.length === 0) continue;
-
-      const columns = Object.keys(rows[0]);
-      const placeholders = columns.map(() => '?').join(', ');
-      const stmt = db.prepare(`INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`);
-
-      for (const row of rows) {
-        stmt.run(...columns.map(col => row[col] !== undefined ? row[col] : null));
-        totalRows++;
+    try {
+      // Clear all tables in reverse dependency order
+      for (const table of clearOrder) {
+        db.prepare(`DELETE FROM ${table}`).run();
       }
+
+      // Insert data in forward dependency order
+      let totalRows = 0;
+      for (const table of EXPORT_TABLES) {
+        const rows = data.tables[table];
+        if (!rows || rows.length === 0) continue;
+
+        const allowedCols = ALLOWED_COLUMNS[table];
+        if (!allowedCols) continue; // skip unknown tables
+
+        // Filter column names to only those in the allowlist
+        const rawColumns = Object.keys(rows[0]);
+        const columns = rawColumns.filter(col => allowedCols.includes(col));
+
+        if (columns.length === 0) continue;
+
+        const placeholders = columns.map(() => '?').join(', ');
+        const stmt = db.prepare(`INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`);
+
+        for (const row of rows) {
+          stmt.run(...columns.map(col => row[col] !== undefined ? row[col] : null));
+          totalRows++;
+        }
+      }
+
+      return totalRows;
+    } finally {
+      // Re-enable foreign keys even if an error occurs
+      db.pragma('foreign_keys = ON');
     }
-
-    // Re-enable foreign keys
-    db.pragma('foreign_keys = ON');
-
-    return totalRows;
   });
 
   try {
@@ -141,7 +169,7 @@ router.post('/restore', (req, res) => {
     });
   } catch (err) {
     console.error('Restore failed:', err);
-    res.status(500).json({ error: 'Restore failed: ' + err.message });
+    res.status(500).json({ error: 'Restore failed. Check server logs for details.' });
   }
 });
 
@@ -160,7 +188,6 @@ router.get('/status', (req, res) => {
   }
 
   res.json({
-    db_path: DB_PATH,
     file_size_bytes: fileSize,
     file_size_human: fileSize ? formatBytes(fileSize) : null,
     table_counts: counts,

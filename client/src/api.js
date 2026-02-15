@@ -1,9 +1,38 @@
 const API_BASE = '/api';
 
+const TOKEN_KEY = 'gift_scheduler_token';
+
+export function getToken() {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setToken(token) {
+  if (token) {
+    localStorage.setItem(TOKEN_KEY, token);
+  } else {
+    localStorage.removeItem(TOKEN_KEY);
+  }
+}
+
+export function clearToken() {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+// Global callback for auth failures — set by App.jsx
+let onAuthFailure = null;
+export function setAuthFailureHandler(handler) {
+  onAuthFailure = handler;
+}
+
 async function request(path, options = {}) {
   const url = `${API_BASE}${path}`;
+  const token = getToken();
+
   const config = {
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     ...options,
   };
 
@@ -13,6 +42,12 @@ async function request(path, options = {}) {
 
   const response = await fetch(url, config);
 
+  if (response.status === 401) {
+    clearToken();
+    if (onAuthFailure) onAuthFailure();
+    throw new Error('Authentication required');
+  }
+
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Request failed' }));
     throw new Error(error.error || `HTTP ${response.status}`);
@@ -21,7 +56,43 @@ async function request(path, options = {}) {
   return response.json();
 }
 
+// Authenticated file download helper (for backup export/download)
+async function downloadFile(path, filename) {
+  const token = getToken();
+  const response = await fetch(`${API_BASE}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+
+  if (response.status === 401) {
+    clearToken();
+    if (onAuthFailure) onAuthFailure();
+    throw new Error('Authentication required');
+  }
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Download failed' }));
+    throw new Error(error.error || `HTTP ${response.status}`);
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export const api = {
+  // Auth
+  getAuthStatus: () => request('/auth/status'),
+  setup: (data) => request('/auth/setup', { method: 'POST', body: data }),
+  login: (data) => request('/auth/login', { method: 'POST', body: data }),
+  changePassword: (data) => request('/auth/password', { method: 'PUT', body: data }),
+  createUser: (data) => request('/auth/users', { method: 'POST', body: data }),
+
   // Dashboard
   getDashboard: () => request('/dashboard'),
 
@@ -104,6 +175,8 @@ export const api = {
 
   // Backup
   getBackupStatus: () => request('/backup/status'),
+  exportBackupJson: () => downloadFile('/backup/export', `gift-scheduler-backup-${new Date().toISOString().split('T')[0]}.json`),
+  downloadBackupSqlite: () => downloadFile('/backup/download', `gift-scheduler-${new Date().toISOString().split('T')[0]}.db`),
   restoreBackup: (data) => request('/backup/restore', { method: 'POST', body: data }),
 
   // Audit

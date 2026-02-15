@@ -2,11 +2,12 @@ const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { getDb } = require('../database');
 const { logAudit } = require('../audit');
+const { requireAdmin } = require('../middleware');
 
 const router = express.Router();
 
-// Create order from approved gift
-router.post('/', (req, res) => {
+// Create order from approved gift (admin only)
+router.post('/', requireAdmin, (req, res) => {
   const db = getDb();
 
   // Check emergency stop

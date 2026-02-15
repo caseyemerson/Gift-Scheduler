@@ -4,6 +4,7 @@ A full-stack application that helps you select, prepare, and send appropriate gi
 
 ## Features
 
+- **Authentication & Authorization** — JWT-based login with role-based access control (admin/user roles); first-run setup flow creates the admin account
 - **Contact Management** — Store profiles with preferences, constraints, gift history, and per-contact default gift options (card, gift, flowers)
 - **Auto Event Creation** — Adding a contact with dates automatically creates recurring events; deleting a contact removes all associated events
 - **Bulk Import** — Import contacts from CSV files or vCard (.vcf) files exported from your phone
@@ -19,7 +20,7 @@ A full-stack application that helps you select, prepare, and send appropriate gi
 - **Emergency Stop** — Instantly disable all purchasing and cancel pending orders
 - **Autonomy Controls** — Per-person and per-event-type rules (scaffolded for future auto-purchase)
 - **Notifications** — Event reminders, approval requests, and delivery alerts
-- **Backup & Restore** — Export all data as JSON or download the raw SQLite file; restore from a JSON backup via the Settings page
+- **Backup & Restore** — Export all data as JSON or download the raw SQLite file; restore from a JSON backup via the Settings page (admin only)
 
 ## Tech Stack
 
@@ -27,6 +28,7 @@ A full-stack application that helps you select, prepare, and send appropriate gi
 |----------|-------------------------------------|
 | Backend  | Node.js, Express, SQLite (better-sqlite3) |
 | Frontend | React 18, Vite 5, Tailwind CSS 3   |
+| Auth     | JWT (jsonwebtoken), bcryptjs        |
 | Testing  | Jest                                |
 
 ## Prerequisites
@@ -67,11 +69,18 @@ This runs:
 
 Open `http://localhost:5173` in your browser.
 
+### First Run — Account Setup
+
+On the first launch, you'll be prompted to create an admin account. This account has full access to all features including backup/restore, settings changes, emergency stop, and order creation.
+
 ### Production
 
 Build the client and serve everything from the Express server:
 
 ```bash
+# Set a persistent JWT secret (required for production)
+export AUTH_SECRET=$(node -e "console.log(require('crypto').randomBytes(64).toString('hex'))")
+
 npm run build
 npm start
 ```
@@ -84,7 +93,41 @@ Then open `http://localhost:3001`.
 npm test
 ```
 
-Runs 23 Jest tests covering database initialization, CRUD operations, budgets, approvals, orders, audit logging, emergency stop, data integrity, and notifications.
+## Security
+
+### Authentication
+
+All API endpoints (except `/api/health` and `/api/auth/*`) require a valid JWT token sent via the `Authorization: Bearer <token>` header. The frontend handles this automatically after login.
+
+### Role-Based Authorization
+
+| Role    | Access Level |
+|---------|-------------|
+| `admin` | Full access — all CRUD, settings, backup/restore, emergency stop, order creation |
+| `user`  | Read/write access to contacts, events, budgets, gifts, cards, approvals |
+
+Admin-only operations:
+- Backup export, download, and restore
+- Emergency stop activation/deactivation
+- Global settings changes
+- Autonomy rule management
+- Order creation
+
+### Security Headers
+
+- **Content Security Policy** — Restricts script sources to same-origin, blocks object embeds and framing
+- **CORS** — Restricted to the application's own origin (configurable via `ALLOWED_ORIGIN` env var)
+- **Helmet.js** — Sets HSTS, X-Frame-Options, X-Content-Type-Options, and other security headers
+
+### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `AUTH_SECRET` | Production | Secret key for signing JWT tokens. If unset, a random key is generated (sessions won't persist across restarts) |
+| `ALLOWED_ORIGIN` | No | CORS allowed origin. Defaults to `http://localhost:5173` in development, same-origin in production |
+| `PORT` | No | Server port (default: 3001) |
+| `DB_PATH` | No | SQLite database file path (default: `server/gift_scheduler.db`) |
+| `NODE_ENV` | No | Set to `production` for production builds |
 
 ## Project Structure
 
@@ -94,19 +137,21 @@ Gift-Scheduler/
 │   ├── src/
 │   │   ├── index.js            # Express server entry point
 │   │   ├── database.js         # SQLite schema and connection
+│   │   ├── middleware.js       # Auth middleware (requireAuth, requireAdmin)
 │   │   ├── audit.js            # Audit logging helper
 │   │   ├── routes/
+│   │   │   ├── auth.js         # Authentication (login, setup, password)
 │   │   │   ├── contacts.js     # Contact CRUD
 │   │   │   ├── events.js       # Event CRUD
 │   │   │   ├── budgets.js      # Budget management
 │   │   │   ├── gifts.js        # Gift recommendation engine
 │   │   │   ├── cards.js        # Card message drafting
 │   │   │   ├── approvals.js    # Approval workflow
-│   │   │   ├── orders.js       # Order tracking
+│   │   │   ├── orders.js       # Order tracking (admin: create)
 │   │   │   ├── notifications.js# Notification system
-│   │   │   ├── settings.js     # Global settings and autonomy
+│   │   │   ├── settings.js     # Global settings (admin: modify)
 │   │   │   ├── integrations.js # Integration status and config
-│   │   │   ├── backup.js       # Backup, export, and restore
+│   │   │   ├── backup.js       # Backup/restore (admin only)
 │   │   │   └── dashboard.js    # Dashboard aggregation
 │   │   └── __tests__/
 │   │       └── api.test.js     # Server tests
@@ -114,10 +159,11 @@ Gift-Scheduler/
 ├── client/
 │   ├── src/
 │   │   ├── main.jsx            # React entry point
-│   │   ├── App.jsx             # Layout, routing, navigation
-│   │   ├── api.js              # API client
+│   │   ├── App.jsx             # Layout, routing, auth state
+│   │   ├── api.js              # API client with JWT handling
 │   │   ├── index.css           # Tailwind base styles
 │   │   └── pages/
+│   │       ├── Login.jsx       # Login and first-run setup
 │   │       ├── Dashboard.jsx
 │   │       ├── Contacts.jsx
 │   │       ├── ContactDetail.jsx
@@ -133,12 +179,13 @@ Gift-Scheduler/
 
 ## Typical Workflow
 
-1. **Add a contact** with at least one date (birthday, anniversary, or other) and set default gift options (card, gift, flowers)
-2. **Events are created automatically** for each date you provide
-3. **Generate gift recommendations** — the system scores and ranks options within budget
-4. **Generate card messages** — choose a tone and pick a message
-5. **Approve** the selected gift and card
-6. **Place the order** — the system tracks status through delivery
+1. **Create an account** on first launch (admin setup)
+2. **Add a contact** with at least one date (birthday, anniversary, or other) and set default gift options (card, gift, flowers)
+3. **Events are created automatically** for each date you provide
+4. **Generate gift recommendations** — the system scores and ranks options within budget
+5. **Generate card messages** — choose a tone and pick a message
+6. **Approve** the selected gift and card
+7. **Place the order** — the system tracks status through delivery
 
 You can also **bulk import** contacts from a CSV file or a vCard (.vcf) file exported from your phone. Events are auto-created for any imported contacts that have dates.
 
@@ -155,47 +202,64 @@ Budgets can be changed globally or overridden per contact.
 
 ## API Endpoints
 
+### Public Endpoints
+
 | Method | Endpoint                        | Description                      |
 |--------|---------------------------------|----------------------------------|
-| GET    | `/api/dashboard`                | Dashboard summary                |
-| GET    | `/api/contacts`                 | List contacts                    |
-| POST   | `/api/contacts`                 | Create contact                   |
-| GET    | `/api/contacts/:id`             | Contact detail with history      |
-| PUT    | `/api/contacts/:id`             | Update contact                   |
-| DELETE | `/api/contacts/:id`             | Delete contact (cascades events) |
-| POST   | `/api/contacts/import`          | Bulk import contacts (CSV/vCard) |
-| GET    | `/api/events`                   | List events (filterable)         |
-| POST   | `/api/events`                   | Create event                     |
-| GET    | `/api/events/:id`               | Event detail with recommendations|
-| PUT    | `/api/events/:id`               | Update event                     |
-| DELETE | `/api/events/:id`               | Delete event                     |
-| GET    | `/api/budgets`                  | List budgets with overrides      |
-| GET    | `/api/budgets/effective`        | Effective budget for contact     |
-| PUT    | `/api/budgets/:id`              | Update default budget            |
-| POST   | `/api/budgets/overrides`        | Set per-person budget override   |
-| POST   | `/api/gifts/recommend/:eventId` | Generate gift recommendations    |
-| GET    | `/api/gifts/event/:eventId`     | Get recommendations for event    |
-| POST   | `/api/cards/generate/:eventId`  | Generate card messages           |
-| GET    | `/api/cards/event/:eventId`     | Get card messages for event      |
-| PUT    | `/api/cards/:id/select`         | Select a card message            |
-| POST   | `/api/approvals`                | Submit approval                  |
-| GET    | `/api/approvals/pending`        | List pending approvals           |
-| POST   | `/api/orders`                   | Place order                      |
-| GET    | `/api/orders`                   | List orders (filterable)         |
-| PUT    | `/api/orders/:id/status`        | Update order status              |
-| GET    | `/api/notifications`            | List notifications               |
-| PUT    | `/api/notifications/read-all`   | Mark all as read                 |
-| GET    | `/api/settings`                 | Get global settings              |
-| POST   | `/api/settings/emergency-stop`  | Toggle emergency stop            |
-| GET    | `/api/settings/audit`           | Query audit log                  |
-| GET    | `/api/settings/autonomy`        | List autonomy rules              |
-| POST   | `/api/settings/autonomy`        | Create autonomy rule             |
-| GET    | `/api/integrations`             | List all integration statuses    |
-| GET    | `/api/integrations/:provider`   | Get status for one provider      |
-| GET    | `/api/backup/export`            | Export all data as JSON file     |
-| GET    | `/api/backup/download`          | Download raw SQLite database     |
-| POST   | `/api/backup/restore`           | Restore from JSON backup         |
-| GET    | `/api/backup/status`            | Database size and row counts     |
+| GET    | `/api/health`                   | Health check                     |
+| GET    | `/api/auth/status`              | Auth status (setup required?)    |
+| POST   | `/api/auth/setup`               | Create first admin account       |
+| POST   | `/api/auth/login`               | Authenticate and get JWT token   |
+
+### Authenticated Endpoints
+
+All endpoints below require `Authorization: Bearer <token>` header.
+
+| Method | Endpoint                        | Description                      | Role     |
+|--------|---------------------------------|----------------------------------|----------|
+| PUT    | `/api/auth/password`            | Change password                  | Any      |
+| POST   | `/api/auth/users`               | Create new user                  | Admin    |
+| GET    | `/api/dashboard`                | Dashboard summary                | Any      |
+| GET    | `/api/contacts`                 | List contacts                    | Any      |
+| POST   | `/api/contacts`                 | Create contact                   | Any      |
+| GET    | `/api/contacts/:id`             | Contact detail with history      | Any      |
+| PUT    | `/api/contacts/:id`             | Update contact                   | Any      |
+| DELETE | `/api/contacts/:id`             | Delete contact (cascades events) | Any      |
+| POST   | `/api/contacts/import`          | Bulk import contacts (CSV/vCard) | Any      |
+| GET    | `/api/events`                   | List events (filterable)         | Any      |
+| POST   | `/api/events`                   | Create event                     | Any      |
+| GET    | `/api/events/:id`               | Event detail with recommendations| Any      |
+| PUT    | `/api/events/:id`               | Update event                     | Any      |
+| DELETE | `/api/events/:id`               | Delete event                     | Any      |
+| GET    | `/api/budgets`                  | List budgets with overrides      | Any      |
+| GET    | `/api/budgets/effective`        | Effective budget for contact     | Any      |
+| PUT    | `/api/budgets/:id`              | Update default budget            | Any      |
+| POST   | `/api/budgets/overrides`        | Set per-person budget override   | Any      |
+| POST   | `/api/gifts/recommend/:eventId` | Generate gift recommendations    | Any      |
+| GET    | `/api/gifts/event/:eventId`     | Get recommendations for event    | Any      |
+| POST   | `/api/cards/generate/:eventId`  | Generate card messages           | Any      |
+| GET    | `/api/cards/event/:eventId`     | Get card messages for event      | Any      |
+| PUT    | `/api/cards/:id/select`         | Select a card message            | Any      |
+| POST   | `/api/approvals`                | Submit approval                  | Any      |
+| GET    | `/api/approvals/pending`        | List pending approvals           | Any      |
+| POST   | `/api/orders`                   | Place order                      | Admin    |
+| GET    | `/api/orders`                   | List orders (filterable)         | Any      |
+| PUT    | `/api/orders/:id/status`        | Update order status              | Any      |
+| GET    | `/api/notifications`            | List notifications               | Any      |
+| PUT    | `/api/notifications/read-all`   | Mark all as read                 | Any      |
+| GET    | `/api/settings`                 | Get global settings              | Any      |
+| PUT    | `/api/settings/:key`            | Update a setting                 | Admin    |
+| POST   | `/api/settings/emergency-stop`  | Toggle emergency stop            | Admin    |
+| GET    | `/api/settings/audit`           | Query audit log                  | Any      |
+| GET    | `/api/settings/autonomy`        | List autonomy rules              | Any      |
+| POST   | `/api/settings/autonomy`        | Create autonomy rule             | Admin    |
+| PUT    | `/api/settings/autonomy/:id`    | Update autonomy rule             | Admin    |
+| GET    | `/api/integrations`             | List all integration statuses    | Any      |
+| GET    | `/api/integrations/:provider`   | Get status for one provider      | Any      |
+| GET    | `/api/backup/export`            | Export all data as JSON file     | Admin    |
+| GET    | `/api/backup/download`          | Download raw SQLite database     | Admin    |
+| POST   | `/api/backup/restore`           | Restore from JSON backup         | Admin    |
+| GET    | `/api/backup/status`            | Database size and row counts     | Any      |
 
 ## Integrations
 
@@ -213,6 +277,10 @@ See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) for full setup instructions, en
 ### Quick Environment Variable Reference
 
 ```bash
+# Authentication
+AUTH_SECRET=             # JWT signing secret (generate for production)
+ALLOWED_ORIGIN=          # CORS origin (optional)
+
 # Retailers
 AMAZON_API_KEY=          AMAZON_API_SECRET=       AMAZON_PARTNER_TAG=
 ETSY_API_KEY=
