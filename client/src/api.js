@@ -28,12 +28,14 @@ async function request(path, options = {}) {
   const url = `${API_BASE}${path}`;
   const token = getToken();
 
+  const { headers: extraHeaders, ...restOptions } = options;
   const config = {
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...extraHeaders,
     },
-    ...options,
+    ...restOptions,
   };
 
   if (config.body && typeof config.body === 'object') {
@@ -60,7 +62,10 @@ async function request(path, options = {}) {
 async function downloadFile(path, filename) {
   const token = getToken();
   const response = await fetch(`${API_BASE}${path}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      'X-Confirm-Action': 'backup',
+    },
   });
 
   if (response.status === 401) {
@@ -177,7 +182,11 @@ export const api = {
   getBackupStatus: () => request('/backup/status'),
   exportBackupJson: () => downloadFile('/backup/export', `gift-scheduler-backup-${new Date().toISOString().split('T')[0]}.json`),
   downloadBackupSqlite: () => downloadFile('/backup/download', `gift-scheduler-${new Date().toISOString().split('T')[0]}.db`),
-  restoreBackup: (data) => request('/backup/restore', { method: 'POST', body: data }),
+  restoreBackup: (data) => request('/backup/restore', {
+    method: 'POST',
+    body: data,
+    headers: { 'Content-Type': 'application/json', 'X-Confirm-Action': 'backup' },
+  }),
 
   // Audit
   getAuditLog: (params = {}) => {

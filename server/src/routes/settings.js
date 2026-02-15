@@ -6,6 +6,13 @@ const { requireAdmin } = require('../middleware');
 
 const router = express.Router();
 
+// Allowlist of valid setting keys — prevents arbitrary key injection
+const ALLOWED_SETTINGS_KEYS = [
+  'emergency_stop',
+  'default_lead_time_days',
+  'autonomy_global_level',
+];
+
 // Get all global settings
 router.get('/', (req, res) => {
   const db = getDb();
@@ -15,10 +22,14 @@ router.get('/', (req, res) => {
   res.json(result);
 });
 
-// Update a global setting (admin only)
+// Update a global setting (admin only, key must be in allowlist)
 router.put('/:key', requireAdmin, (req, res) => {
   const db = getDb();
   const { value } = req.body;
+
+  if (!ALLOWED_SETTINGS_KEYS.includes(req.params.key)) {
+    return res.status(400).json({ error: 'Unknown setting key' });
+  }
 
   if (value === undefined) return res.status(400).json({ error: 'Value is required' });
 
@@ -130,8 +141,8 @@ router.put('/autonomy/:id', requireAdmin, (req, res) => {
   res.json(updated);
 });
 
-// Audit log endpoint
-router.get('/audit', (req, res) => {
+// Audit log endpoint (admin only — contains operational details)
+router.get('/audit', requireAdmin, (req, res) => {
   const db = getDb();
   let query = 'SELECT * FROM audit_log WHERE 1=1';
   const params = [];

@@ -113,6 +113,32 @@ Admin-only operations:
 - Autonomy rule management
 - Order creation
 
+### Rate Limiting
+
+All API endpoints are rate-limited to prevent brute force attacks and resource exhaustion:
+
+| Scope | Limit | Window |
+|-------|-------|--------|
+| General API | 200 requests | 15 minutes |
+| Auth (login/setup) | 15 requests | 15 minutes |
+| Sensitive (backup, emergency stop, orders) | 10 requests | 15 minutes |
+
+### Backup Security
+
+Backup operations have layered protections:
+- **Authentication** — Admin role required for export, download, and restore
+- **Confirmation header** — All backup operations require `X-Confirm-Action: backup` header
+- **Re-authentication** — Restore operations require the admin's current password
+- **No path disclosure** — Database file path is not exposed in any API response
+
+### Data Protection
+
+- **PII sanitization in audit logs** — Email, phone, birthday, anniversary, and other dates are redacted from audit log entries (logged as `[redacted]`)
+- **Audit log access** — Restricted to admin users only
+- **Approval enforcement** — Orders cannot be created without a valid, approved approval record
+- **Settings key allowlist** — Only known setting keys can be modified via the API
+- **Import batch limits** — Bulk contact imports are capped at 500 contacts per request
+
 ### Security Headers
 
 - **Content Security Policy** — Restricts script sources to same-origin, blocks object embeds and framing
@@ -250,7 +276,7 @@ All endpoints below require `Authorization: Bearer <token>` header.
 | GET    | `/api/settings`                 | Get global settings              | Any      |
 | PUT    | `/api/settings/:key`            | Update a setting                 | Admin    |
 | POST   | `/api/settings/emergency-stop`  | Toggle emergency stop            | Admin    |
-| GET    | `/api/settings/audit`           | Query audit log                  | Any      |
+| GET    | `/api/settings/audit`           | Query audit log                  | Admin    |
 | GET    | `/api/settings/autonomy`        | List autonomy rules              | Any      |
 | POST   | `/api/settings/autonomy`        | Create autonomy rule             | Admin    |
 | PUT    | `/api/settings/autonomy/:id`    | Update autonomy rule             | Admin    |

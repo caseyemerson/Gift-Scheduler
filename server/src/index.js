@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const path = require('path');
 const { getDb, closeDb } = require('./database');
 const { requireAuth } = require('./middleware');
@@ -54,6 +55,39 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: '10mb' }));
+
+// Rate limiting — general API limit
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later' },
+});
+app.use('/api/', apiLimiter);
+
+// Stricter rate limits for auth endpoints (brute force protection)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many authentication attempts, please try again later' },
+});
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/setup', authLimiter);
+
+// Stricter rate limits for sensitive operations
+const sensitiveLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests to this endpoint, please try again later' },
+});
+app.use('/api/backup', sensitiveLimiter);
+app.use('/api/settings/emergency-stop', sensitiveLimiter);
+app.use('/api/orders', sensitiveLimiter);
 
 // Request logging
 app.use((req, res, next) => {

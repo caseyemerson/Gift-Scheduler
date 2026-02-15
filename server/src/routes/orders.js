@@ -21,18 +21,16 @@ router.post('/', requireAdmin, (req, res) => {
 
   const { gift_recommendation_id, event_id, approval_id } = req.body;
 
-  if (!gift_recommendation_id || !event_id) {
-    return res.status(400).json({ error: 'gift_recommendation_id and event_id are required' });
+  if (!gift_recommendation_id || !event_id || !approval_id) {
+    return res.status(400).json({ error: 'gift_recommendation_id, event_id, and approval_id are required' });
   }
 
-  // Verify approval exists
-  if (approval_id) {
-    const approval = db.prepare(
-      "SELECT * FROM approvals WHERE id = ? AND status = 'approved'"
-    ).get(approval_id);
-    if (!approval) {
-      return res.status(400).json({ error: 'Valid approval required before ordering' });
-    }
+  // Verify approval exists and is in 'approved' status
+  const approval = db.prepare(
+    "SELECT * FROM approvals WHERE id = ? AND status = 'approved'"
+  ).get(approval_id);
+  if (!approval) {
+    return res.status(400).json({ error: 'Valid approval in approved status is required before ordering' });
   }
 
   const gift = db.prepare('SELECT * FROM gift_recommendations WHERE id = ?').get(gift_recommendation_id);
@@ -45,7 +43,7 @@ router.post('/', requireAdmin, (req, res) => {
   db.prepare(`
     INSERT INTO orders (id, gift_recommendation_id, event_id, approval_id, status, order_reference, estimated_delivery, ordered_at)
     VALUES (?, ?, ?, ?, 'ordered', ?, ?, datetime('now'))
-  `).run(id, gift_recommendation_id, event_id, approval_id || null, orderRef, estimatedDelivery);
+  `).run(id, gift_recommendation_id, event_id, approval_id, orderRef, estimatedDelivery);
 
   // Update gift status to purchased
   db.prepare("UPDATE gift_recommendations SET status = 'purchased' WHERE id = ?").run(gift_recommendation_id);
