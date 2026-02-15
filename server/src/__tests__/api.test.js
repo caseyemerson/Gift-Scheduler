@@ -160,7 +160,7 @@ describe('Budget system', () => {
     const db = getDb();
     const birthday = db.prepare("SELECT * FROM budgets WHERE category = 'birthday'").get();
     expect(birthday).toBeDefined();
-    expect(birthday.default_amount).toBe(50.00);
+    expect(birthday.default_amount).toBe(30.00);
   });
 
   test('allows budget overrides per contact', () => {

@@ -170,10 +170,10 @@ function initializeSchema(database) {
 
     -- Insert default budgets if not exist
     INSERT OR IGNORE INTO budgets (id, category, default_amount) VALUES
-      ('budget_birthday', 'birthday', 50.00),
-      ('budget_anniversary', 'anniversary', 75.00),
-      ('budget_holiday', 'holiday', 40.00),
-      ('budget_other', 'other', 30.00);
+      ('budget_birthday', 'birthday', 30.00),
+      ('budget_anniversary', 'anniversary', 50.00),
+      ('budget_holiday', 'holiday', 30.00),
+      ('budget_other', 'other', 20.00);
 
     -- Insert default global settings
     INSERT OR IGNORE INTO global_settings (key, value) VALUES

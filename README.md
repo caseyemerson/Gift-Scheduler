@@ -4,8 +4,11 @@ A full-stack application that helps you select, prepare, and send appropriate gi
 
 ## Features
 
-- **Contact Management** — Store profiles with preferences, constraints, and gift history
-- **Event Tracking** — Birthdays, anniversaries, holidays with configurable lead times and recurring support
+- **Contact Management** — Store profiles with preferences, constraints, gift history, and per-contact default gift options (card, gift, flowers)
+- **Auto Event Creation** — Adding a contact with dates automatically creates recurring events; deleting a contact removes all associated events
+- **Bulk Import** — Import contacts from CSV files or vCard (.vcf) files exported from your phone
+- **Event Tracking** — Birthdays, anniversaries, holidays, and other dates with configurable lead times and recurring support
+- **Dark Mode** — Automatically follows your device's light/dark preference
 - **Budget Management** — Category-based defaults with per-person overrides
 - **Gift Recommendations** — Scored suggestions based on interests, budget, and delivery feasibility
 - **Card Message Drafting** — Auto-generated messages in 5 tones (warm, formal, humorous, heartfelt, casual)
@@ -126,21 +129,23 @@ Gift-Scheduler/
 
 ## Typical Workflow
 
-1. **Add a contact** with their interests and preferences
-2. **Create an event** (e.g. "Mom's Birthday" on a specific date)
+1. **Add a contact** with at least one date (birthday, anniversary, or other) and set default gift options (card, gift, flowers)
+2. **Events are created automatically** for each date you provide
 3. **Generate gift recommendations** — the system scores and ranks options within budget
 4. **Generate card messages** — choose a tone and pick a message
 5. **Approve** the selected gift and card
 6. **Place the order** — the system tracks status through delivery
 
+You can also **bulk import** contacts from a CSV file or a vCard (.vcf) file exported from your phone. Events are auto-created for any imported contacts that have dates.
+
 ## Default Budgets
 
 | Category    | Default |
 |-------------|---------|
-| Birthday    | $50     |
-| Anniversary | $75     |
-| Holiday     | $40     |
-| Other       | $30     |
+| Birthday    | $30     |
+| Anniversary | $50     |
+| Holiday     | $30     |
+| Other       | $20     |
 
 Budgets can be changed globally or overridden per contact.
 
@@ -153,7 +158,8 @@ Budgets can be changed globally or overridden per contact.
 | POST   | `/api/contacts`                 | Create contact                   |
 | GET    | `/api/contacts/:id`             | Contact detail with history      |
 | PUT    | `/api/contacts/:id`             | Update contact                   |
-| DELETE | `/api/contacts/:id`             | Delete contact                   |
+| DELETE | `/api/contacts/:id`             | Delete contact (cascades events) |
+| POST   | `/api/contacts/import`          | Bulk import contacts (CSV/vCard) |
 | GET    | `/api/events`                   | List events (filterable)         |
 | POST   | `/api/events`                   | Create event                     |
 | GET    | `/api/events/:id`               | Event detail with recommendations|
