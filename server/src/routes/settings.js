@@ -2,6 +2,7 @@ const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { getDb } = require('../database');
 const { logAudit } = require('../audit');
+const { requireAdmin } = require('../middleware');
 
 const router = express.Router();
 
@@ -14,8 +15,8 @@ router.get('/', (req, res) => {
   res.json(result);
 });
 
-// Update a global setting
-router.put('/:key', (req, res) => {
+// Update a global setting (admin only)
+router.put('/:key', requireAdmin, (req, res) => {
   const db = getDb();
   const { value } = req.body;
 
@@ -31,8 +32,8 @@ router.put('/:key', (req, res) => {
   res.json({ key: req.params.key, value: String(value) });
 });
 
-// Emergency stop
-router.post('/emergency-stop', (req, res) => {
+// Emergency stop (admin only)
+router.post('/emergency-stop', requireAdmin, (req, res) => {
   const db = getDb();
   const { activate } = req.body;
   const value = activate ? 'true' : 'false';
@@ -88,7 +89,7 @@ router.get('/autonomy', (req, res) => {
   res.json(settings);
 });
 
-router.post('/autonomy', (req, res) => {
+router.post('/autonomy', requireAdmin, (req, res) => {
   const db = getDb();
   const { contact_id, event_type, level, max_budget } = req.body;
 
@@ -107,7 +108,7 @@ router.post('/autonomy', (req, res) => {
   res.status(201).json({ id, contact_id, event_type, level, max_budget });
 });
 
-router.put('/autonomy/:id', (req, res) => {
+router.put('/autonomy/:id', requireAdmin, (req, res) => {
   const db = getDb();
   const { level, max_budget, enabled } = req.body;
 

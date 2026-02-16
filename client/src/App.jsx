@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
-import { api } from './api';
+import { api, getToken, clearToken, setAuthFailureHandler } from './api';
+import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Contacts from './pages/Contacts';
 import ContactDetail from './pages/ContactDetail';
@@ -27,11 +28,54 @@ export default function App() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [emergencyStop, setEmergencyStop] = useState(false);
 
+  // Auth state
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [setupRequired, setSetupRequired] = useState(false);
+  const [user, setUser] = useState(null);
+
+  // Register auth failure handler so API 401s redirect to login
   useEffect(() => {
+    setAuthFailureHandler(() => {
+      setAuthenticated(false);
+      setUser(null);
+    });
+  }, []);
+
+  // Check auth status on mount
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  async function checkAuth() {
+    try {
+      const status = await api.getAuthStatus();
+      if (status.setup_required) {
+        setSetupRequired(true);
+        setAuthenticated(false);
+      } else if (status.authenticated) {
+        setAuthenticated(true);
+        setUser(status.user);
+      } else {
+        setAuthenticated(false);
+      }
+    } catch {
+      // If auth check fails and we have a token, clear it
+      if (getToken()) {
+        clearToken();
+      }
+      setAuthenticated(false);
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!authenticated) return;
     loadStatus();
     const interval = setInterval(loadStatus, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [authenticated]);
 
   useEffect(() => {
     setMobileMenuOpen(false);
@@ -48,6 +92,32 @@ export default function App() {
     } catch {
       // Server may not be ready yet
     }
+  }
+
+  function handleAuthSuccess(userData) {
+    setAuthenticated(true);
+    setSetupRequired(false);
+    setUser(userData);
+  }
+
+  function handleLogout() {
+    clearToken();
+    setAuthenticated(false);
+    setUser(null);
+  }
+
+  // Show loading spinner during auth check
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="w-8 h-8 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // Show login page if not authenticated
+  if (!authenticated) {
+    return <Login setupRequired={setupRequired} onAuthSuccess={handleAuthSuccess} />;
   }
 
   return (
@@ -108,6 +178,25 @@ export default function App() {
               </Link>
             );
           })}
+        </div>
+
+        {/* User info and logout */}
+        <div className="px-3 mt-auto border-t border-gray-200 dark:border-gray-700 py-4">
+          <div className="flex items-center justify-between px-3">
+            <div className="text-sm">
+              <span className="font-medium text-gray-700 dark:text-gray-300">{user?.username}</span>
+              <span className="ml-1.5 text-xs text-gray-400 dark:text-gray-500 capitalize">({user?.role})</span>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="text-xs text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+              title="Sign out"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </button>
+          </div>
         </div>
       </nav>
 
