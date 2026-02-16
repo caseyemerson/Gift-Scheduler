@@ -99,12 +99,24 @@ npm test
 
 All API endpoints (except `/api/health` and `/api/auth/*`) require a valid JWT token sent via the `Authorization: Bearer <token>` header. The frontend handles this automatically after login.
 
+### Token Lifecycle
+
+JWT tokens include a `token_version` claim that is validated on every request. When a user changes their password, the version is incremented, immediately invalidating all previously issued tokens. The current session receives a fresh token so it remains active.
+
+### Password Policy
+
+Passwords must meet the following requirements:
+- Minimum 8 characters
+- Maximum 128 characters
+- At least one letter (a-z or A-Z)
+- At least one number (0-9)
+
 ### Role-Based Authorization
 
 | Role    | Access Level |
 |---------|-------------|
 | `admin` | Full access — all CRUD, settings, backup/restore, emergency stop, order creation |
-| `user`  | Read/write access to contacts, events, budgets, gifts, cards, approvals |
+| `user`  | Read/write access to own contacts, events, budgets, gifts, cards, approvals |
 
 Admin-only operations:
 - Backup export, download, and restore
@@ -112,6 +124,10 @@ Admin-only operations:
 - Global settings changes
 - Autonomy rule management
 - Order creation
+
+### Data Ownership (Multi-User)
+
+Contacts are scoped by `user_id` ownership. Non-admin users can only see, edit, and delete their own contacts and the events, orders, and approvals associated with them. Admin users have full access to all data. Legacy contacts (created before the ownership migration) have a `NULL` user_id and remain visible to all users.
 
 ### Rate Limiting
 
@@ -129,21 +145,37 @@ Backup operations have layered protections:
 - **Authentication** — Admin role required for export, download, and restore
 - **Confirmation header** — All backup operations require `X-Confirm-Action: backup` header
 - **Re-authentication** — Restore operations require the admin's current password
+- **Audit log immutability** — The audit log is never deleted during a restore; restored audit entries are appended via `INSERT OR IGNORE` to prevent duplicates while preserving the existing trail
+- **Value type validation** — Numeric columns are type-checked during restore; rows with invalid types are skipped
 - **No path disclosure** — Database file path is not exposed in any API response
 
 ### Data Protection
 
 - **PII sanitization in audit logs** — Email, phone, birthday, anniversary, and other dates are redacted from audit log entries (logged as `[redacted]`)
 - **Audit log access** — Restricted to admin users only
+- **Authenticated identity in approvals** — The `approved_by` field is derived from the authenticated user's JWT identity, not from client-supplied data
 - **Approval enforcement** — Orders cannot be created without a valid, approved approval record
+- **Cryptographic order references** — Order references use `crypto.randomBytes()` for unpredictable identifiers
 - **Settings key allowlist** — Only known setting keys can be modified via the API
 - **Import batch limits** — Bulk contact imports are capped at 500 contacts per request
+- **API key masking** — Integration API keys are masked to show only the last 4 characters
+
+### Input Validation
+
+- **Date format** — All date fields (birthday, anniversary, other_date, event date) are validated against `YYYY-MM-DD` format
+- **URL format** — `tracking_url` fields are validated to use `http://` or `https://` protocol
+- **Numeric parameters** — Query parameters like `limit` use `parseInt` with radix 10, `Number.isFinite` checks, and a maximum cap of 1000
+- **Password length** — Both minimum (8) and maximum (128) character limits are enforced
 
 ### Security Headers
 
 - **Content Security Policy** — Restricts script sources to same-origin, blocks object embeds and framing
 - **CORS** — Restricted to the application's own origin (configurable via `ALLOWED_ORIGIN` env var)
 - **Helmet.js** — Sets HSTS, X-Frame-Options, X-Content-Type-Options, and other security headers
+
+### Docker Security
+
+The production Docker image runs as a non-root user (`appuser`) to minimize the impact of any container escape or RCE vulnerability.
 
 ### Environment Variables
 
