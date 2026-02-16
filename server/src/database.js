@@ -30,8 +30,10 @@ function initializeSchema(database) {
       preferences TEXT DEFAULT '{}',
       constraints TEXT DEFAULT '{}',
       notes TEXT DEFAULT '',
+      user_id TEXT,
       created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id)
     );
 
     CREATE TABLE IF NOT EXISTS events (
@@ -173,6 +175,7 @@ function initializeSchema(database) {
       username TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'user' CHECK(role IN ('admin', 'user')),
+      token_version INTEGER NOT NULL DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     );
@@ -200,6 +203,7 @@ function initializeSchema(database) {
     CREATE INDEX IF NOT EXISTS idx_orders_event ON orders(event_id);
     CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity_type, entity_id);
     CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
+    CREATE INDEX IF NOT EXISTS idx_contacts_user ON contacts(user_id);
   `);
 
   // Migrations: add columns to existing contacts table
@@ -207,6 +211,12 @@ function initializeSchema(database) {
   try { database.exec('ALTER TABLE contacts ADD COLUMN anniversary TEXT'); } catch {}
   try { database.exec('ALTER TABLE contacts ADD COLUMN other_date TEXT'); } catch {}
   try { database.exec("ALTER TABLE contacts ADD COLUMN default_gifts TEXT DEFAULT '{\"card\":true,\"gift\":false,\"flowers\":false}'"); } catch {}
+
+  // Migration: add token_version to users table
+  try { database.exec('ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0'); } catch {}
+
+  // Migration: add user_id to contacts table for ownership scoping (M4)
+  try { database.exec('ALTER TABLE contacts ADD COLUMN user_id TEXT REFERENCES users(id)'); } catch {}
 }
 
 function closeDb() {

@@ -16,8 +16,11 @@ router.get('/', (req, res) => {
   query += ' ORDER BY created_at DESC';
 
   if (req.query.limit) {
-    query += ' LIMIT ?';
-    params.push(parseInt(req.query.limit));
+    const limit = parseInt(req.query.limit, 10);
+    if (Number.isFinite(limit) && limit > 0) {
+      query += ' LIMIT ?';
+      params.push(Math.min(limit, 1000));
+    }
   }
 
   const notifications = db.prepare(query).all(...params);

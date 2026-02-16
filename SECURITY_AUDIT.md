@@ -369,22 +369,22 @@ Protect the audit log from modification during restore operations. Consider maki
 
 | # | Finding | Severity | Status |
 |---|---------|----------|--------|
-| M1 | JWT tokens not invalidated on password change | Medium | Open |
-| M2 | Approval `approved_by` accepts arbitrary strings | Medium | Open |
-| M3 | AUTH_SECRET exported as module property | Medium | Open |
-| M4 | No horizontal authorization (IDOR in multi-user) | Medium | Open |
-| M5 | Restore operation wipes audit log | Medium | Open |
-| M6 | Predictable order references | Medium | Open |
-| L1 | Docker container runs as root | Low | Open |
-| L2 | API key masking shows too many characters | Low | Open |
-| L3 | No date format validation | Low | Open |
-| L4 | parseInt without radix/NaN check | Low | Open |
-| L5 | JWT in localStorage (XSS exposure) | Low | Open |
-| L6 | Minimal password complexity requirements | Low | Open |
-| L7 | No maximum password length | Low | Open |
-| L8 | PII stored without encryption at rest | Low | Open |
-| L9 | tracking_url not validated as HTTP(S) | Low | Open |
-| L10 | Backup restore doesn't validate value types | Low | Open |
+| M1 | JWT tokens not invalidated on password change | Medium | **Fixed** — `token_version` column added to users table; included in JWT payload; validated in `requireAuth`; incremented on password change (`middleware.js`, `auth.js`) |
+| M2 | Approval `approved_by` accepts arbitrary strings | Medium | **Fixed** — `approved_by` now derived from `req.user.username` instead of request body (`approvals.js:27`); client no longer sends the field (`EventDetail.jsx`) |
+| M3 | AUTH_SECRET exported as module property | Medium | **Fixed** — `AUTH_SECRET` removed from `module.exports` in `middleware.js:67` |
+| M4 | No horizontal authorization (IDOR in multi-user) | Medium | **Fixed** — `user_id` column added to contacts table; set on creation; ownership checks in GET/PUT/DELETE for contacts and events; non-admin users scoped to own data (`contacts.js`, `events.js`, `database.js`) |
+| M5 | Restore operation wipes audit log | Medium | **Fixed** — `audit_log` excluded from deletion during restore; restored audit entries appended via `INSERT OR IGNORE` (`backup.js:38,166-167,187`) |
+| M6 | Predictable order references | Medium | **Fixed** — Order references now use `crypto.randomBytes(6)` instead of `Date.now().toString(36)` (`orders.js:41`) |
+| L1 | Docker container runs as root | Low | **Fixed** — Non-root `appuser` created and `USER appuser` set before `CMD` (`Dockerfile`) |
+| L2 | API key masking shows too many characters | Low | **Fixed** — `maskSecret()` now shows only last 4 characters (`integrations.js:100`) |
+| L3 | No date format validation | Low | **Fixed** — YYYY-MM-DD regex validation added to contacts and events routes (`contacts.js`, `events.js`) |
+| L4 | parseInt without radix/NaN check | Low | **Fixed** — `parseInt` calls use radix 10 with `Number.isFinite` check and max cap of 1000 (`events.js:42-46`, `notifications.js:19-23`) |
+| L5 | JWT in localStorage (XSS exposure) | Low | Accepted — CSP mitigates XSS risk; architectural change to cookie-based auth deferred |
+| L6 | Minimal password complexity requirements | Low | **Fixed** — Passwords now require at least one letter and one number (`auth.js:15-28`) |
+| L7 | No maximum password length | Low | **Fixed** — 128-character maximum enforced (`auth.js:19-21`) |
+| L8 | PII stored without encryption at rest | Low | Accepted — Acceptable risk for personal-use deployment per audit recommendation |
+| L9 | tracking_url not validated as HTTP(S) | Low | **Fixed** — Server validates `https?://` protocol before accepting (`orders.js:121-123`) |
+| L10 | Backup restore doesn't validate value types | Low | **Fixed** — Numeric columns validated against expected types; rows with type errors skipped (`backup.js:57-79,192-201`) |
 
 ---
 

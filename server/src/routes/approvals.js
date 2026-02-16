@@ -21,10 +21,13 @@ function checkEmergencyStop(req, res, next) {
 // Submit approval for an event (gift + card)
 router.post('/', checkEmergencyStop, (req, res) => {
   const db = getDb();
-  const { event_id, gift_recommendation_id, card_message_id, approved_by, status, notes } = req.body;
+  const { event_id, gift_recommendation_id, card_message_id, status, notes } = req.body;
 
-  if (!event_id || !approved_by || !status) {
-    return res.status(400).json({ error: 'event_id, approved_by, and status are required' });
+  // Use authenticated user identity instead of client-supplied approved_by
+  const approved_by = req.user.username;
+
+  if (!event_id || !status) {
+    return res.status(400).json({ error: 'event_id and status are required' });
   }
 
   if (!['approved', 'rejected'].includes(status)) {
