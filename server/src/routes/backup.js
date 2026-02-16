@@ -1,11 +1,22 @@
 const express = require('express');
 const fs = require('fs');
+const bcrypt = require('bcryptjs');
 const { getDb, DB_PATH } = require('../database');
 const { logAudit } = require('../audit');
 const { requireAdmin } = require('../middleware');
 const { v4: uuidv4 } = require('uuid');
 
 const router = express.Router();
+
+// Confirmation middleware — requires X-Confirm-Action: backup header
+function requireConfirmation(req, res, next) {
+  if (req.headers['x-confirm-action'] !== 'backup') {
+    return res.status(400).json({
+      error: 'Backup operations require confirmation. Set the X-Confirm-Action: backup header.',
+    });
+  }
+  next();
+}
 
 // All tables to include in a JSON export, in dependency order
 const EXPORT_TABLES = [
@@ -40,8 +51,8 @@ const ALLOWED_COLUMNS = {
   audit_log: ['id', 'action', 'entity_type', 'entity_id', 'details', 'performed_by', 'created_at'],
 };
 
-// GET /api/backup/export — export all data as JSON (admin only)
-router.get('/export', requireAdmin, (req, res) => {
+// GET /api/backup/export — export all data as JSON (admin only, requires confirmation)
+router.get('/export', requireAdmin, requireConfirmation, (req, res) => {
   const db = getDb();
   const data = { version: 1, exported_at: new Date().toISOString(), tables: {} };
 
@@ -59,8 +70,8 @@ router.get('/export', requireAdmin, (req, res) => {
   res.json(data);
 });
 
-// GET /api/backup/download — download the raw SQLite database file (admin only)
-router.get('/download', requireAdmin, (req, res) => {
+// GET /api/backup/download — download the raw SQLite database file (admin only, requires confirmation)
+router.get('/download', requireAdmin, requireConfirmation, (req, res) => {
   const db = getDb();
 
   // Checkpoint WAL to ensure the .db file has all data
@@ -80,8 +91,8 @@ router.get('/download', requireAdmin, (req, res) => {
   stream.pipe(res);
 });
 
-// POST /api/backup/restore — restore from a JSON export (admin only)
-router.post('/restore', requireAdmin, (req, res) => {
+// POST /api/backup/restore — restore from a JSON export (admin only, requires re-authentication)
+router.post('/restore', requireAdmin, requireConfirmation, async (req, res) => {
   const data = req.body;
 
   if (!data || !data.tables || !data.version) {
@@ -92,7 +103,22 @@ router.post('/restore', requireAdmin, (req, res) => {
     return res.status(400).json({ error: `Unsupported backup version: ${data.version}` });
   }
 
+  // Re-authentication: require current password for destructive restore operation
+  const { password } = data;
+  if (!password) {
+    return res.status(400).json({ error: 'Password is required to confirm restore operation' });
+  }
+
   const db = getDb();
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  if (!user) {
+    return res.status(401).json({ error: 'User not found' });
+  }
+
+  const valid = await bcrypt.compare(password, user.password_hash);
+  if (!valid) {
+    return res.status(401).json({ error: 'Incorrect password' });
+  }
 
   // Count existing rows for the audit log
   const existingCounts = {};

@@ -127,10 +127,18 @@ export default function Settings() {
       return;
     }
 
+    // Re-authentication: prompt for password to confirm destructive operation
+    const password = prompt('Enter your password to confirm restore:');
+    if (!password) {
+      e.target.value = '';
+      return;
+    }
+
     setRestoreLoading(true);
     try {
       const text = await file.text();
       const data = JSON.parse(text);
+      data.password = password;
       const result = await api.restoreBackup(data);
       alert(`Restored ${result.total_rows} rows successfully.`);
       loadData();
