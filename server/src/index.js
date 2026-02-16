@@ -23,6 +23,9 @@ const backupRouter = require('./routes/backup');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Trust Railway's reverse proxy for correct req.ip, req.protocol, etc.
+app.set('trust proxy', 1);
+
 // Determine allowed origin for CORS
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || (
   process.env.NODE_ENV === 'production'
@@ -44,6 +47,7 @@ app.use(helmet({
       frameAncestors: ["'none'"],
     },
   },
+  crossOriginResourcePolicy: false,
 }));
 
 // CORS — restricted to application origin only
