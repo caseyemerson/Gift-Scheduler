@@ -5,6 +5,16 @@ const { logAudit } = require('../audit');
 
 const router = express.Router();
 
+// Helper: verify the requesting user owns the contact (IDOR prevention - M4)
+function requireOwnership(db, contactId, userId) {
+  const contact = db.prepare('SELECT * FROM contacts WHERE id = ?').get(contactId);
+  if (!contact) return { error: 'Contact not found', status: 404 };
+  if (contact.user_id && contact.user_id !== userId) {
+    return { error: 'Contact not found', status: 404 };
+  }
+  return { contact };
+}
+
 // Helper: create events for a contact based on their dates
 function createEventsForContact(db, contactId, contactName, { birthday, anniversary, other_date }) {
   const insertEvent = db.prepare(`
@@ -38,10 +48,10 @@ function createEventsForContact(db, contactId, contactName, { birthday, annivers
   return created;
 }
 
-// List all contacts
+// List all contacts (scoped to authenticated user)
 router.get('/', (req, res) => {
   const db = getDb();
-  const contacts = db.prepare('SELECT * FROM contacts ORDER BY name').all();
+  const contacts = db.prepare('SELECT * FROM contacts WHERE user_id = ? OR user_id IS NULL ORDER BY name').all(req.user.id);
   const parsed = contacts.map((c) => ({
     ...c,
     preferences: JSON.parse(c.preferences || '{}'),
@@ -54,8 +64,9 @@ router.get('/', (req, res) => {
 // Get single contact with gift history
 router.get('/:id', (req, res) => {
   const db = getDb();
-  const contact = db.prepare('SELECT * FROM contacts WHERE id = ?').get(req.params.id);
-  if (!contact) return res.status(404).json({ error: 'Contact not found' });
+  const ownership = requireOwnership(db, req.params.id, req.user.id);
+  if (ownership.error) return res.status(ownership.status).json({ error: ownership.error });
+  const contact = ownership.contact;
 
   const events = db.prepare('SELECT * FROM events WHERE contact_id = ? ORDER BY date DESC').all(req.params.id);
   const giftHistory = db.prepare(`
@@ -91,12 +102,13 @@ router.post('/', (req, res) => {
 
   const id = uuidv4();
   db.prepare(`
-    INSERT INTO contacts (id, name, email, phone, relationship, birthday, anniversary, other_date, default_gifts, preferences, constraints, notes)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO contacts (id, name, email, phone, relationship, birthday, anniversary, other_date, default_gifts, preferences, constraints, notes, user_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(id, name, email || null, phone || null, relationship,
     birthday || null, anniversary || null, other_date || null,
     JSON.stringify(default_gifts || { card: true, gift: false, flowers: false }),
-    JSON.stringify(preferences || {}), JSON.stringify(constraints || {}), notes || '');
+    JSON.stringify(preferences || {}), JSON.stringify(constraints || {}), notes || '',
+    req.user.id);
 
   logAudit('create', 'contact', id, { name, relationship });
 
@@ -117,8 +129,9 @@ router.post('/', (req, res) => {
 // Update contact
 router.put('/:id', (req, res) => {
   const db = getDb();
-  const existing = db.prepare('SELECT * FROM contacts WHERE id = ?').get(req.params.id);
-  if (!existing) return res.status(404).json({ error: 'Contact not found' });
+  const ownership = requireOwnership(db, req.params.id, req.user.id);
+  if (ownership.error) return res.status(ownership.status).json({ error: ownership.error });
+  const existing = ownership.contact;
 
   const { name, email, phone, relationship, birthday, anniversary, other_date, default_gifts, preferences, constraints, notes } = req.body;
 
@@ -181,8 +194,8 @@ router.post('/import', (req, res) => {
   const errors = [];
 
   const insertStmt = db.prepare(`
-    INSERT INTO contacts (id, name, email, phone, relationship, birthday, anniversary, other_date, default_gifts, preferences, constraints, notes)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO contacts (id, name, email, phone, relationship, birthday, anniversary, other_date, default_gifts, preferences, constraints, notes, user_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const importMany = db.transaction((rows) => {
@@ -207,7 +220,8 @@ router.post('/import', (req, res) => {
           JSON.stringify(defaultGifts),
           JSON.stringify(contact.preferences || {}),
           JSON.stringify(contact.constraints || {}),
-          contact.notes || ''
+          contact.notes || '',
+          req.user.id
         );
         // Auto-create events for imported contacts that have dates
         createEventsForContact(db, id, contact.name, {
@@ -235,8 +249,9 @@ router.post('/import', (req, res) => {
 // Delete contact
 router.delete('/:id', (req, res) => {
   const db = getDb();
-  const existing = db.prepare('SELECT * FROM contacts WHERE id = ?').get(req.params.id);
-  if (!existing) return res.status(404).json({ error: 'Contact not found' });
+  const ownership = requireOwnership(db, req.params.id, req.user.id);
+  if (ownership.error) return res.status(ownership.status).json({ error: ownership.error });
+  const existing = ownership.contact;
 
   db.prepare('DELETE FROM contacts WHERE id = ?').run(req.params.id);
   logAudit('delete', 'contact', req.params.id, { name: existing.name });

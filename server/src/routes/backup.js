@@ -37,7 +37,7 @@ const EXPORT_TABLES = [
 // Schema allowlist: only these columns are permitted during restore.
 // This prevents SQL injection via attacker-controlled column names.
 const ALLOWED_COLUMNS = {
-  contacts: ['id', 'name', 'email', 'phone', 'relationship', 'birthday', 'anniversary', 'other_date', 'default_gifts', 'preferences', 'constraints', 'notes', 'created_at', 'updated_at'],
+  contacts: ['id', 'name', 'email', 'phone', 'relationship', 'birthday', 'anniversary', 'other_date', 'default_gifts', 'preferences', 'constraints', 'notes', 'user_id', 'created_at', 'updated_at'],
   events: ['id', 'contact_id', 'type', 'name', 'date', 'recurring', 'lead_time_days', 'status', 'created_at', 'updated_at'],
   budgets: ['id', 'category', 'default_amount', 'created_at', 'updated_at'],
   budget_overrides: ['id', 'budget_id', 'contact_id', 'amount', 'created_at', 'updated_at'],
@@ -50,6 +50,9 @@ const ALLOWED_COLUMNS = {
   global_settings: ['key', 'value', 'updated_at'],
   audit_log: ['id', 'action', 'entity_type', 'entity_id', 'details', 'performed_by', 'created_at'],
 };
+
+// Tables that should not be cleared during restore (M5: audit log immutability)
+const RESTORE_PROTECTED_TABLES = new Set(['audit_log']);
 
 // GET /api/backup/export — export all data as JSON (admin only, requires confirmation)
 router.get('/export', requireAdmin, requireConfirmation, (req, res) => {
@@ -134,8 +137,9 @@ router.post('/restore', requireAdmin, requireConfirmation, async (req, res) => {
     db.pragma('foreign_keys = OFF');
 
     try {
-      // Clear all tables in reverse dependency order
+      // Clear all tables in reverse dependency order (skip protected tables)
       for (const table of clearOrder) {
+        if (RESTORE_PROTECTED_TABLES.has(table)) continue;
         db.prepare(`DELETE FROM ${table}`).run();
       }
 
@@ -155,7 +159,9 @@ router.post('/restore', requireAdmin, requireConfirmation, async (req, res) => {
         if (columns.length === 0) continue;
 
         const placeholders = columns.map(() => '?').join(', ');
-        const stmt = db.prepare(`INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`);
+        // Use INSERT OR IGNORE for protected tables to preserve existing records
+        const insertCmd = RESTORE_PROTECTED_TABLES.has(table) ? 'INSERT OR IGNORE' : 'INSERT';
+        const stmt = db.prepare(`${insertCmd} INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`);
 
         for (const row of rows) {
           stmt.run(...columns.map(col => row[col] !== undefined ? row[col] : null));
@@ -184,7 +190,11 @@ router.post('/restore', requireAdmin, requireConfirmation, async (req, res) => {
     for (const table of EXPORT_TABLES) {
       const rows = data.tables[table] || [];
       if (rows.length > 0 || existingCounts[table] > 0) {
-        summary[table] = { before: existingCounts[table], restored: rows.length };
+        summary[table] = {
+          before: existingCounts[table],
+          restored: rows.length,
+          protected: RESTORE_PROTECTED_TABLES.has(table),
+        };
       }
     }
 

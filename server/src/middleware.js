@@ -13,7 +13,7 @@ const TOKEN_EXPIRY = '24h';
 
 function generateToken(user) {
   return jwt.sign(
-    { id: user.id, username: user.username, role: user.role },
+    { id: user.id, username: user.username, role: user.role, token_version: user.token_version || 0 },
     AUTH_SECRET,
     { expiresIn: TOKEN_EXPIRY }
   );
@@ -36,9 +36,14 @@ function requireAuth(req, res, next) {
 
     // Verify user still exists in the database
     const db = getDb();
-    const user = db.prepare('SELECT id, username, role FROM users WHERE id = ?').get(payload.id);
+    const user = db.prepare('SELECT id, username, role, token_version FROM users WHERE id = ?').get(payload.id);
     if (!user) {
       return res.status(401).json({ error: 'User no longer exists' });
+    }
+
+    // Verify token version matches (tokens are invalidated on password change)
+    if (payload.token_version !== undefined && payload.token_version !== user.token_version) {
+      return res.status(401).json({ error: 'Token has been revoked' });
     }
 
     req.user = user;
@@ -59,4 +64,4 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-module.exports = { generateToken, verifyToken, requireAuth, requireAdmin, AUTH_SECRET };
+module.exports = { generateToken, verifyToken, requireAuth, requireAdmin };

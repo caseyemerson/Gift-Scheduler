@@ -74,7 +74,7 @@ router.post('/setup', async (req, res) => {
 
   logAudit('create_user', 'user', id, { username, role: 'admin', source: 'setup' });
 
-  const token = generateToken({ id, username, role: 'admin' });
+  const token = generateToken({ id, username, role: 'admin', token_version: 0 });
 
   res.status(201).json({
     message: 'Admin account created',
@@ -105,7 +105,7 @@ router.post('/login', async (req, res) => {
 
   logAudit('login', 'user', user.id, { username: user.username });
 
-  const token = generateToken({ id: user.id, username: user.username, role: user.role });
+  const token = generateToken({ id: user.id, username: user.username, role: user.role, token_version: user.token_version });
 
   res.json({
     token,
@@ -134,12 +134,16 @@ router.put('/password', requireAuth, async (req, res) => {
   }
 
   const passwordHash = await bcrypt.hash(new_password, BCRYPT_ROUNDS);
-  db.prepare("UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?")
-    .run(passwordHash, req.user.id);
+  const newTokenVersion = (user.token_version || 0) + 1;
+  db.prepare("UPDATE users SET password_hash = ?, token_version = ?, updated_at = datetime('now') WHERE id = ?")
+    .run(passwordHash, newTokenVersion, req.user.id);
 
   logAudit('change_password', 'user', req.user.id, { username: req.user.username });
 
-  res.json({ message: 'Password updated' });
+  // Issue a new token with the updated version so the current session remains valid
+  const token = generateToken({ id: user.id, username: user.username, role: user.role, token_version: newTokenVersion });
+
+  res.json({ message: 'Password updated', token });
 });
 
 // POST /api/auth/users — create a new user (admin only)

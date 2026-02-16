@@ -66,7 +66,6 @@ export default function EventDetail() {
         event_id: id,
         gift_recommendation_id: selectedGift,
         card_message_id: selectedCard,
-        approved_by: 'owner',
         status: 'approved',
       });
       await loadEvent();

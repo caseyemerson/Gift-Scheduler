@@ -5,16 +5,16 @@ const { logAudit } = require('../audit');
 
 const router = express.Router();
 
-// List events with optional filters
+// List events with optional filters (scoped to authenticated user's contacts)
 router.get('/', (req, res) => {
   const db = getDb();
   let query = `
     SELECT e.*, c.name as contact_name, c.relationship
     FROM events e
     JOIN contacts c ON e.contact_id = c.id
-    WHERE 1=1
+    WHERE (c.user_id = ? OR c.user_id IS NULL)
   `;
-  const params = [];
+  const params = [req.user.id];
 
   if (req.query.status) {
     query += ' AND e.status = ?';
@@ -43,13 +43,16 @@ router.get('/', (req, res) => {
 router.get('/:id', (req, res) => {
   const db = getDb();
   const event = db.prepare(`
-    SELECT e.*, c.name as contact_name, c.relationship, c.preferences, c.constraints
+    SELECT e.*, c.name as contact_name, c.relationship, c.preferences, c.constraints, c.user_id as contact_user_id
     FROM events e
     JOIN contacts c ON e.contact_id = c.id
     WHERE e.id = ?
   `).get(req.params.id);
 
   if (!event) return res.status(404).json({ error: 'Event not found' });
+  if (event.contact_user_id && event.contact_user_id !== req.user.id) {
+    return res.status(404).json({ error: 'Event not found' });
+  }
 
   const recommendations = db.prepare(
     'SELECT * FROM gift_recommendations WHERE event_id = ? ORDER BY price ASC'
@@ -89,6 +92,9 @@ router.post('/', (req, res) => {
 
   const contact = db.prepare('SELECT * FROM contacts WHERE id = ?').get(contact_id);
   if (!contact) return res.status(400).json({ error: 'Contact not found' });
+  if (contact.user_id && contact.user_id !== req.user.id) {
+    return res.status(400).json({ error: 'Contact not found' });
+  }
 
   const id = uuidv4();
   db.prepare(`
@@ -109,8 +115,14 @@ router.post('/', (req, res) => {
 // Update event
 router.put('/:id', (req, res) => {
   const db = getDb();
-  const existing = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  const existing = db.prepare(`
+    SELECT e.*, c.user_id as contact_user_id FROM events e
+    JOIN contacts c ON e.contact_id = c.id WHERE e.id = ?
+  `).get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Event not found' });
+  if (existing.contact_user_id && existing.contact_user_id !== req.user.id) {
+    return res.status(404).json({ error: 'Event not found' });
+  }
 
   const { type, name, date, recurring, lead_time_days, status } = req.body;
 
@@ -144,8 +156,14 @@ router.put('/:id', (req, res) => {
 // Delete event
 router.delete('/:id', (req, res) => {
   const db = getDb();
-  const existing = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  const existing = db.prepare(`
+    SELECT e.*, c.user_id as contact_user_id FROM events e
+    JOIN contacts c ON e.contact_id = c.id WHERE e.id = ?
+  `).get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Event not found' });
+  if (existing.contact_user_id && existing.contact_user_id !== req.user.id) {
+    return res.status(404).json({ error: 'Event not found' });
+  }
 
   db.prepare('DELETE FROM events WHERE id = ?').run(req.params.id);
   logAudit('delete', 'event', req.params.id, { name: existing.name });
