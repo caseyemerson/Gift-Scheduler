@@ -140,12 +140,13 @@ app.use((err, req, res, _next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-// Initialize database on startup
-getDb();
-console.log('Database initialized');
-
-const server = app.listen(PORT, () => {
+// Start listening first so the health check endpoint is available immediately
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Gift Scheduler API running on port ${PORT}`);
+
+  // Initialize database after server is listening
+  getDb();
+  console.log('Database initialized');
 });
 
 // Graceful shutdown
