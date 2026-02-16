@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const { getDb } = require('../database');
 const { logAudit } = require('../audit');
@@ -37,7 +38,7 @@ router.post('/', requireAdmin, (req, res) => {
   if (!gift) return res.status(404).json({ error: 'Gift recommendation not found' });
 
   const id = uuidv4();
-  const orderRef = `GS-${Date.now().toString(36).toUpperCase()}`;
+  const orderRef = `GS-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
   const estimatedDelivery = gift.estimated_delivery;
 
   db.prepare(`
@@ -114,6 +115,11 @@ router.put('/:id/status', (req, res) => {
 
   if (!['pending', 'ordered', 'shipped', 'delivered', 'issue', 'cancelled'].includes(status)) {
     return res.status(400).json({ error: 'Invalid status' });
+  }
+
+  // Validate tracking_url is a valid HTTP(S) URL (L9)
+  if (tracking_url && !/^https?:\/\//i.test(tracking_url)) {
+    return res.status(400).json({ error: 'tracking_url must be a valid HTTP(S) URL' });
   }
 
   const existing = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);

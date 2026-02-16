@@ -34,10 +34,13 @@ const EXPORT_TABLES = [
   'audit_log',
 ];
 
+// Tables that should NOT be cleared during restore (append-only)
+const RESTORE_PROTECTED_TABLES = new Set(['audit_log']);
+
 // Schema allowlist: only these columns are permitted during restore.
 // This prevents SQL injection via attacker-controlled column names.
 const ALLOWED_COLUMNS = {
-  contacts: ['id', 'name', 'email', 'phone', 'relationship', 'birthday', 'anniversary', 'other_date', 'default_gifts', 'preferences', 'constraints', 'notes', 'created_at', 'updated_at'],
+  contacts: ['id', 'name', 'email', 'phone', 'relationship', 'birthday', 'anniversary', 'other_date', 'default_gifts', 'preferences', 'constraints', 'notes', 'user_id', 'created_at', 'updated_at'],
   events: ['id', 'contact_id', 'type', 'name', 'date', 'recurring', 'lead_time_days', 'status', 'created_at', 'updated_at'],
   budgets: ['id', 'category', 'default_amount', 'created_at', 'updated_at'],
   budget_overrides: ['id', 'budget_id', 'contact_id', 'amount', 'created_at', 'updated_at'],
@@ -50,6 +53,30 @@ const ALLOWED_COLUMNS = {
   global_settings: ['key', 'value', 'updated_at'],
   audit_log: ['id', 'action', 'entity_type', 'entity_id', 'details', 'performed_by', 'created_at'],
 };
+
+// Expected value types per column for type validation (L10)
+const COLUMN_TYPES = {
+  // numeric columns
+  default_amount: 'number',
+  amount: 'number',
+  price: 'number',
+  max_budget: 'number',
+  recurring: 'number',
+  lead_time_days: 'number',
+  in_stock: 'number',
+  selected: 'number',
+  read: 'number',
+  enabled: 'number',
+};
+
+// Validate a row value against expected types
+function validateRowValue(col, value) {
+  if (value === null || value === undefined) return true;
+  const expectedType = COLUMN_TYPES[col];
+  if (!expectedType) return true; // no type constraint — accept any
+  if (expectedType === 'number') return typeof value === 'number';
+  return true;
+}
 
 // GET /api/backup/export — export all data as JSON (admin only, requires confirmation)
 router.get('/export', requireAdmin, requireConfirmation, (req, res) => {
@@ -126,21 +153,23 @@ router.post('/restore', requireAdmin, requireConfirmation, async (req, res) => {
     existingCounts[table] = db.prepare(`SELECT COUNT(*) as count FROM ${table}`).get().count;
   }
 
-  // Restore tables in dependency order: clear children first, then parents
-  const clearOrder = [...EXPORT_TABLES].reverse();
+  // Tables to clear during restore (excludes protected tables like audit_log)
+  const restorableTables = EXPORT_TABLES.filter(t => !RESTORE_PROTECTED_TABLES.has(t));
+  const clearOrder = [...restorableTables].reverse();
 
   const restoreTransaction = db.transaction(() => {
     // Temporarily disable foreign keys for the restore
     db.pragma('foreign_keys = OFF');
 
     try {
-      // Clear all tables in reverse dependency order
+      // Clear non-protected tables in reverse dependency order
       for (const table of clearOrder) {
         db.prepare(`DELETE FROM ${table}`).run();
       }
 
       // Insert data in forward dependency order
       let totalRows = 0;
+      let typeErrors = [];
       for (const table of EXPORT_TABLES) {
         const rows = data.tables[table];
         if (!rows || rows.length === 0) continue;
@@ -154,16 +183,29 @@ router.post('/restore', requireAdmin, requireConfirmation, async (req, res) => {
 
         if (columns.length === 0) continue;
 
+        // For protected tables, use INSERT OR IGNORE to append without duplicates
+        const insertMode = RESTORE_PROTECTED_TABLES.has(table) ? 'INSERT OR IGNORE' : 'INSERT';
         const placeholders = columns.map(() => '?').join(', ');
-        const stmt = db.prepare(`INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`);
+        const stmt = db.prepare(`${insertMode} INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`);
 
         for (const row of rows) {
+          // Validate value types (L10)
+          let hasTypeError = false;
+          for (const col of columns) {
+            if (!validateRowValue(col, row[col])) {
+              typeErrors.push({ table, column: col, expected: COLUMN_TYPES[col], got: typeof row[col] });
+              hasTypeError = true;
+              break;
+            }
+          }
+          if (hasTypeError) continue; // skip rows with type errors
+
           stmt.run(...columns.map(col => row[col] !== undefined ? row[col] : null));
           totalRows++;
         }
       }
 
-      return totalRows;
+      return { totalRows, typeErrors };
     } finally {
       // Re-enable foreign keys even if an error occurs
       db.pragma('foreign_keys = ON');
@@ -171,12 +213,13 @@ router.post('/restore', requireAdmin, requireConfirmation, async (req, res) => {
   });
 
   try {
-    const totalRows = restoreTransaction();
+    const { totalRows, typeErrors } = restoreTransaction();
 
     logAudit('restore_backup', 'system', null, {
       source_exported_at: data.exported_at,
       tables_restored: Object.keys(data.tables).length,
       total_rows: totalRows,
+      type_errors: typeErrors.length,
     });
 
     // Build a summary of what was restored
@@ -184,15 +227,25 @@ router.post('/restore', requireAdmin, requireConfirmation, async (req, res) => {
     for (const table of EXPORT_TABLES) {
       const rows = data.tables[table] || [];
       if (rows.length > 0 || existingCounts[table] > 0) {
-        summary[table] = { before: existingCounts[table], restored: rows.length };
+        summary[table] = {
+          before: existingCounts[table],
+          restored: rows.length,
+          protected: RESTORE_PROTECTED_TABLES.has(table),
+        };
       }
     }
 
-    res.json({
+    const response = {
       message: 'Backup restored successfully',
       total_rows: totalRows,
       summary,
-    });
+    };
+
+    if (typeErrors.length > 0) {
+      response.type_errors = typeErrors;
+    }
+
+    res.json(response);
   } catch (err) {
     console.error('Restore failed:', err);
     res.status(500).json({ error: 'Restore failed. Check server logs for details.' });

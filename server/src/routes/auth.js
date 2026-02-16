@@ -9,6 +9,24 @@ const router = express.Router();
 
 const BCRYPT_ROUNDS = 12;
 const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,30}$/;
+const MAX_PASSWORD_LENGTH = 128;
+
+// Password validation helper
+function validatePassword(password) {
+  if (password.length < 8) {
+    return 'Password must be at least 8 characters';
+  }
+  if (password.length > MAX_PASSWORD_LENGTH) {
+    return 'Password must not exceed 128 characters';
+  }
+  if (!/[a-zA-Z]/.test(password)) {
+    return 'Password must contain at least one letter';
+  }
+  if (!/[0-9]/.test(password)) {
+    return 'Password must contain at least one number';
+  }
+  return null;
+}
 
 // GET /api/auth/status — check if setup is required or if user is authenticated
 router.get('/status', (req, res) => {
@@ -61,8 +79,9 @@ router.post('/setup', async (req, res) => {
     return res.status(400).json({ error: 'Username must be 3-30 characters, alphanumeric and underscores only' });
   }
 
-  if (password.length < 8) {
-    return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  const passwordError = validatePassword(password);
+  if (passwordError) {
+    return res.status(400).json({ error: passwordError });
   }
 
   const id = uuidv4();
@@ -74,7 +93,7 @@ router.post('/setup', async (req, res) => {
 
   logAudit('create_user', 'user', id, { username, role: 'admin', source: 'setup' });
 
-  const token = generateToken({ id, username, role: 'admin' });
+  const token = generateToken({ id, username, role: 'admin', token_version: 0 });
 
   res.status(201).json({
     message: 'Admin account created',
@@ -105,7 +124,7 @@ router.post('/login', async (req, res) => {
 
   logAudit('login', 'user', user.id, { username: user.username });
 
-  const token = generateToken({ id: user.id, username: user.username, role: user.role });
+  const token = generateToken({ id: user.id, username: user.username, role: user.role, token_version: user.token_version });
 
   res.json({
     token,
@@ -121,8 +140,9 @@ router.put('/password', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Current and new password are required' });
   }
 
-  if (new_password.length < 8) {
-    return res.status(400).json({ error: 'New password must be at least 8 characters' });
+  const passwordError = validatePassword(new_password);
+  if (passwordError) {
+    return res.status(400).json({ error: passwordError });
   }
 
   const db = getDb();
@@ -134,12 +154,16 @@ router.put('/password', requireAuth, async (req, res) => {
   }
 
   const passwordHash = await bcrypt.hash(new_password, BCRYPT_ROUNDS);
-  db.prepare("UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?")
-    .run(passwordHash, req.user.id);
+  const newTokenVersion = (user.token_version || 0) + 1;
+  db.prepare("UPDATE users SET password_hash = ?, token_version = ?, updated_at = datetime('now') WHERE id = ?")
+    .run(passwordHash, newTokenVersion, req.user.id);
 
   logAudit('change_password', 'user', req.user.id, { username: req.user.username });
 
-  res.json({ message: 'Password updated' });
+  // Issue a new token with the updated version so the current session remains valid
+  const token = generateToken({ id: user.id, username: user.username, role: user.role, token_version: newTokenVersion });
+
+  res.json({ message: 'Password updated', token });
 });
 
 // POST /api/auth/users — create a new user (admin only)
@@ -158,8 +182,9 @@ router.post('/users', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Username must be 3-30 characters, alphanumeric and underscores only' });
   }
 
-  if (password.length < 8) {
-    return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  const passwordError = validatePassword(password);
+  if (passwordError) {
+    return res.status(400).json({ error: passwordError });
   }
 
   const userRole = (role === 'admin' || role === 'user') ? role : 'user';
