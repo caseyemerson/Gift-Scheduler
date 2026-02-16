@@ -56,6 +56,9 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' }));
 
+// Trust first proxy (Railway/render/etc.) so express-rate-limit reads the real client IP
+app.set('trust proxy', 1);
+
 // Rate limiting — general API limit
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
