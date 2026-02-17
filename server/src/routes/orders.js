@@ -117,6 +117,11 @@ router.put('/:id/status', (req, res) => {
     return res.status(400).json({ error: 'Invalid status' });
   }
 
+  // Validate tracking_url is a valid HTTP(S) URL (L9)
+  if (tracking_url && !/^https?:\/\//i.test(tracking_url)) {
+    return res.status(400).json({ error: 'tracking_url must be a valid HTTP(S) URL' });
+  }
+
   const existing = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Order not found' });
 

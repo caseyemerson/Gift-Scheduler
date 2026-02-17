@@ -29,11 +29,18 @@ COPY --from=client-build /app/client/dist ./client/dist
 # Create directory for SQLite database with persistent volume
 RUN mkdir -p /data
 
+# Create non-root user for running the application
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+RUN chown -R appuser:appgroup /app /data
+
 ENV NODE_ENV=production
 ENV PORT=8080
 ENV DB_PATH=/data/gift_scheduler.db
 
 EXPOSE 8080
+
+# Switch to non-root user
+USER appuser
 
 # Health check — use the PORT env var so it works regardless of platform config
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

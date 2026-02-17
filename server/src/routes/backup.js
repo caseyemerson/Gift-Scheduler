@@ -54,6 +54,30 @@ const ALLOWED_COLUMNS = {
 // Tables that should not be cleared during restore (M5: audit log immutability)
 const RESTORE_PROTECTED_TABLES = new Set(['audit_log']);
 
+// Expected value types per column for type validation (L10)
+const COLUMN_TYPES = {
+  // numeric columns
+  default_amount: 'number',
+  amount: 'number',
+  price: 'number',
+  max_budget: 'number',
+  recurring: 'number',
+  lead_time_days: 'number',
+  in_stock: 'number',
+  selected: 'number',
+  read: 'number',
+  enabled: 'number',
+};
+
+// Validate a row value against expected types
+function validateRowValue(col, value) {
+  if (value === null || value === undefined) return true;
+  const expectedType = COLUMN_TYPES[col];
+  if (!expectedType) return true; // no type constraint — accept any
+  if (expectedType === 'number') return typeof value === 'number';
+  return true;
+}
+
 // GET /api/backup/export — export all data as JSON (admin only, requires confirmation)
 router.get('/export', requireAdmin, requireConfirmation, (req, res) => {
   const db = getDb();
@@ -145,6 +169,7 @@ router.post('/restore', requireAdmin, requireConfirmation, async (req, res) => {
 
       // Insert data in forward dependency order
       let totalRows = 0;
+      let typeErrors = [];
       for (const table of EXPORT_TABLES) {
         const rows = data.tables[table];
         if (!rows || rows.length === 0) continue;
@@ -164,12 +189,23 @@ router.post('/restore', requireAdmin, requireConfirmation, async (req, res) => {
         const stmt = db.prepare(`${insertCmd} INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`);
 
         for (const row of rows) {
+          // Validate value types (L10)
+          let hasTypeError = false;
+          for (const col of columns) {
+            if (!validateRowValue(col, row[col])) {
+              typeErrors.push({ table, column: col, expected: COLUMN_TYPES[col], got: typeof row[col] });
+              hasTypeError = true;
+              break;
+            }
+          }
+          if (hasTypeError) continue; // skip rows with type errors
+
           stmt.run(...columns.map(col => row[col] !== undefined ? row[col] : null));
           totalRows++;
         }
       }
 
-      return totalRows;
+      return { totalRows, typeErrors };
     } finally {
       // Re-enable foreign keys even if an error occurs
       db.pragma('foreign_keys = ON');
@@ -177,12 +213,13 @@ router.post('/restore', requireAdmin, requireConfirmation, async (req, res) => {
   });
 
   try {
-    const totalRows = restoreTransaction();
+    const { totalRows, typeErrors } = restoreTransaction();
 
     logAudit('restore_backup', 'system', null, {
       source_exported_at: data.exported_at,
       tables_restored: Object.keys(data.tables).length,
       total_rows: totalRows,
+      type_errors: typeErrors.length,
     });
 
     // Build a summary of what was restored
@@ -198,11 +235,17 @@ router.post('/restore', requireAdmin, requireConfirmation, async (req, res) => {
       }
     }
 
-    res.json({
+    const response = {
       message: 'Backup restored successfully',
       total_rows: totalRows,
       summary,
-    });
+    };
+
+    if (typeErrors.length > 0) {
+      response.type_errors = typeErrors;
+    }
+
+    res.json(response);
   } catch (err) {
     console.error('Restore failed:', err);
     res.status(500).json({ error: 'Restore failed. Check server logs for details.' });

@@ -5,6 +5,14 @@ const { logAudit } = require('../audit');
 
 const router = express.Router();
 
+const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+// Helper: validate date format (YYYY-MM-DD)
+function isValidDate(dateStr) {
+  if (!dateStr) return true; // null/undefined dates are allowed
+  return DATE_REGEX.test(dateStr);
+}
+
 // Helper: verify the requesting user owns the contact (IDOR prevention - M4)
 function requireOwnership(db, contactId, userId) {
   const contact = db.prepare('SELECT * FROM contacts WHERE id = ?').get(contactId);
@@ -100,6 +108,13 @@ router.post('/', (req, res) => {
     return res.status(400).json({ error: 'At least one date (birthday, anniversary, or other) is required' });
   }
 
+  // Validate date formats (L3)
+  for (const [field, value] of [['birthday', birthday], ['anniversary', anniversary], ['other_date', other_date]]) {
+    if (value && !isValidDate(value)) {
+      return res.status(400).json({ error: `${field} must be in YYYY-MM-DD format` });
+    }
+  }
+
   const id = uuidv4();
   db.prepare(`
     INSERT INTO contacts (id, name, email, phone, relationship, birthday, anniversary, other_date, default_gifts, preferences, constraints, notes, user_id)
@@ -134,6 +149,13 @@ router.put('/:id', (req, res) => {
   const existing = ownership.contact;
 
   const { name, email, phone, relationship, birthday, anniversary, other_date, default_gifts, preferences, constraints, notes } = req.body;
+
+  // Validate date formats (L3)
+  for (const [field, value] of [['birthday', birthday], ['anniversary', anniversary], ['other_date', other_date]]) {
+    if (value && !isValidDate(value)) {
+      return res.status(400).json({ error: `${field} must be in YYYY-MM-DD format` });
+    }
+  }
 
   db.prepare(`
     UPDATE contacts SET

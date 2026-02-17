@@ -5,6 +5,8 @@ const { logAudit } = require('../audit');
 
 const router = express.Router();
 
+const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
 // List events with optional filters (scoped to authenticated user's contacts)
 router.get('/', (req, res) => {
   const db = getDb();
@@ -31,8 +33,11 @@ router.get('/', (req, res) => {
   query += ' ORDER BY e.date ASC';
 
   if (req.query.limit) {
-    query += ' LIMIT ?';
-    params.push(parseInt(req.query.limit));
+    const limit = parseInt(req.query.limit, 10);
+    if (Number.isFinite(limit) && limit > 0) {
+      query += ' LIMIT ?';
+      params.push(Math.min(limit, 1000));
+    }
   }
 
   const events = db.prepare(query).all(...params);
@@ -90,6 +95,11 @@ router.post('/', (req, res) => {
     return res.status(400).json({ error: 'contact_id, type, name, and date are required' });
   }
 
+  // Validate date format
+  if (date && !DATE_REGEX.test(date)) {
+    return res.status(400).json({ error: 'date must be in YYYY-MM-DD format' });
+  }
+
   const contact = db.prepare('SELECT * FROM contacts WHERE id = ?').get(contact_id);
   if (!contact) return res.status(400).json({ error: 'Contact not found' });
   if (contact.user_id && contact.user_id !== req.user.id) {
@@ -125,6 +135,11 @@ router.put('/:id', (req, res) => {
   }
 
   const { type, name, date, recurring, lead_time_days, status } = req.body;
+
+  // Validate date format
+  if (date && !DATE_REGEX.test(date)) {
+    return res.status(400).json({ error: 'date must be in YYYY-MM-DD format' });
+  }
 
   db.prepare(`
     UPDATE events SET
