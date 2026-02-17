@@ -5,14 +5,12 @@ const { logAudit } = require('../audit');
 
 const router = express.Router();
 
-// Helper: verify the requesting user owns the contact (IDOR prevention - M4)
-function requireOwnership(db, contactId, userId) {
-  const contact = db.prepare('SELECT * FROM contacts WHERE id = ?').get(contactId);
-  if (!contact) return { error: 'Contact not found', status: 404 };
-  if (contact.user_id && contact.user_id !== userId) {
-    return { error: 'Contact not found', status: 404 };
-  }
-  return { contact };
+const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+// Helper: validate date format (YYYY-MM-DD)
+function isValidDate(dateStr) {
+  if (!dateStr) return true; // null/undefined dates are allowed
+  return DATE_REGEX.test(dateStr);
 }
 
 // Helper: create events for a contact based on their dates
@@ -48,10 +46,27 @@ function createEventsForContact(db, contactId, contactName, { birthday, annivers
   return created;
 }
 
-// List all contacts (scoped to authenticated user)
+// Helper: build ownership filter for contacts queries
+function ownershipFilter(req) {
+  if (req.user.role === 'admin') {
+    return { clause: '', params: [] };
+  }
+  return { clause: ' AND (c.user_id = ? OR c.user_id IS NULL)', params: [req.user.id] };
+}
+
+// List all contacts (scoped by user ownership)
 router.get('/', (req, res) => {
   const db = getDb();
-  const contacts = db.prepare('SELECT * FROM contacts WHERE user_id = ? OR user_id IS NULL ORDER BY name').all(req.user.id);
+  let query = 'SELECT * FROM contacts c WHERE 1=1';
+  const params = [];
+
+  if (req.user.role !== 'admin') {
+    query += ' AND (c.user_id = ? OR c.user_id IS NULL)';
+    params.push(req.user.id);
+  }
+
+  query += ' ORDER BY c.name';
+  const contacts = db.prepare(query).all(...params);
   const parsed = contacts.map((c) => ({
     ...c,
     preferences: JSON.parse(c.preferences || '{}'),
@@ -61,12 +76,17 @@ router.get('/', (req, res) => {
   res.json(parsed);
 });
 
-// Get single contact with gift history
+// Get single contact with gift history (with ownership check)
 router.get('/:id', (req, res) => {
   const db = getDb();
   const ownership = requireOwnership(db, req.params.id, req.user.id);
   if (ownership.error) return res.status(ownership.status).json({ error: ownership.error });
   const contact = ownership.contact;
+
+  // Ownership check: non-admin users can only access their own contacts
+  if (req.user.role !== 'admin' && contact.user_id && contact.user_id !== req.user.id) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
 
   const events = db.prepare('SELECT * FROM events WHERE contact_id = ? ORDER BY date DESC').all(req.params.id);
   const giftHistory = db.prepare(`
@@ -98,6 +118,13 @@ router.post('/', (req, res) => {
 
   if (!birthday && !anniversary && !other_date) {
     return res.status(400).json({ error: 'At least one date (birthday, anniversary, or other) is required' });
+  }
+
+  // Validate date formats (L3)
+  for (const [field, value] of [['birthday', birthday], ['anniversary', anniversary], ['other_date', other_date]]) {
+    if (value && !isValidDate(value)) {
+      return res.status(400).json({ error: `${field} must be in YYYY-MM-DD format` });
+    }
   }
 
   const id = uuidv4();
@@ -133,7 +160,19 @@ router.put('/:id', (req, res) => {
   if (ownership.error) return res.status(ownership.status).json({ error: ownership.error });
   const existing = ownership.contact;
 
+  // Ownership check
+  if (req.user.role !== 'admin' && existing.user_id && existing.user_id !== req.user.id) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+
   const { name, email, phone, relationship, birthday, anniversary, other_date, default_gifts, preferences, constraints, notes } = req.body;
+
+  // Validate date formats (L3)
+  for (const [field, value] of [['birthday', birthday], ['anniversary', anniversary], ['other_date', other_date]]) {
+    if (value && !isValidDate(value)) {
+      return res.status(400).json({ error: `${field} must be in YYYY-MM-DD format` });
+    }
+  }
 
   db.prepare(`
     UPDATE contacts SET
@@ -252,6 +291,11 @@ router.delete('/:id', (req, res) => {
   const ownership = requireOwnership(db, req.params.id, req.user.id);
   if (ownership.error) return res.status(ownership.status).json({ error: ownership.error });
   const existing = ownership.contact;
+
+  // Ownership check
+  if (req.user.role !== 'admin' && existing.user_id && existing.user_id !== req.user.id) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
 
   db.prepare('DELETE FROM contacts WHERE id = ?').run(req.params.id);
   logAudit('delete', 'contact', req.params.id, { name: existing.name });

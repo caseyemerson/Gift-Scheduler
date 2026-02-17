@@ -23,6 +23,9 @@ const backupRouter = require('./routes/backup');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Trust Railway's reverse proxy for correct req.ip, req.protocol, etc.
+app.set('trust proxy', 1);
+
 // Determine allowed origin for CORS
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || (
   process.env.NODE_ENV === 'production'
@@ -44,20 +47,18 @@ app.use(helmet({
       frameAncestors: ["'none'"],
     },
   },
+  crossOriginResourcePolicy: false,
 }));
 
 // CORS — restricted to application origin only
 app.use(cors({
   origin: ALLOWED_ORIGIN || false,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Confirm-Action'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
 }));
 
 app.use(express.json({ limit: '10mb' }));
-
-// Trust first proxy (Railway/render/etc.) so express-rate-limit reads the real client IP
-app.set('trust proxy', 1);
 
 // Rate limiting — general API limit
 const apiLimiter = rateLimit({
@@ -143,12 +144,13 @@ app.use((err, req, res, _next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-// Initialize database on startup
-getDb();
-console.log('Database initialized');
-
-const server = app.listen(PORT, () => {
+// Start listening first so the health check endpoint is available immediately
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Gift Scheduler API running on port ${PORT}`);
+
+  // Initialize database after server is listening
+  getDb();
+  console.log('Database initialized');
 });
 
 // Graceful shutdown

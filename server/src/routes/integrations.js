@@ -97,8 +97,8 @@ const INTEGRATIONS = {
 
 // Helper: mask a secret value for safe display
 function maskSecret(value) {
-  if (!value || value.length < 8) return value ? '••••••••' : null;
-  return value.slice(0, 4) + '••••' + value.slice(-4);
+  if (!value) return null;
+  return '••••••••' + value.slice(-4);
 }
 
 // Helper: check if a provider is configured via env vars
