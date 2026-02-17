@@ -153,50 +153,6 @@ You can also **bulk import** contacts from a CSV file or a vCard (.vcf) file exp
 
 Budgets can be changed globally or overridden per contact.
 
-## API Endpoints
-
-| Method | Endpoint                        | Description                      |
-|--------|---------------------------------|----------------------------------|
-| GET    | `/api/dashboard`                | Dashboard summary                |
-| GET    | `/api/contacts`                 | List contacts                    |
-| POST   | `/api/contacts`                 | Create contact                   |
-| GET    | `/api/contacts/:id`             | Contact detail with history      |
-| PUT    | `/api/contacts/:id`             | Update contact                   |
-| DELETE | `/api/contacts/:id`             | Delete contact (cascades events) |
-| POST   | `/api/contacts/import`          | Bulk import contacts (CSV/vCard) |
-| GET    | `/api/events`                   | List events (filterable)         |
-| POST   | `/api/events`                   | Create event                     |
-| GET    | `/api/events/:id`               | Event detail with recommendations|
-| PUT    | `/api/events/:id`               | Update event                     |
-| DELETE | `/api/events/:id`               | Delete event                     |
-| GET    | `/api/budgets`                  | List budgets with overrides      |
-| GET    | `/api/budgets/effective`        | Effective budget for contact     |
-| PUT    | `/api/budgets/:id`              | Update default budget            |
-| POST   | `/api/budgets/overrides`        | Set per-person budget override   |
-| POST   | `/api/gifts/recommend/:eventId` | Generate gift recommendations    |
-| GET    | `/api/gifts/event/:eventId`     | Get recommendations for event    |
-| POST   | `/api/cards/generate/:eventId`  | Generate card messages           |
-| GET    | `/api/cards/event/:eventId`     | Get card messages for event      |
-| PUT    | `/api/cards/:id/select`         | Select a card message            |
-| POST   | `/api/approvals`                | Submit approval                  |
-| GET    | `/api/approvals/pending`        | List pending approvals           |
-| POST   | `/api/orders`                   | Place order                      |
-| GET    | `/api/orders`                   | List orders (filterable)         |
-| PUT    | `/api/orders/:id/status`        | Update order status              |
-| GET    | `/api/notifications`            | List notifications               |
-| PUT    | `/api/notifications/read-all`   | Mark all as read                 |
-| GET    | `/api/settings`                 | Get global settings              |
-| POST   | `/api/settings/emergency-stop`  | Toggle emergency stop            |
-| GET    | `/api/settings/audit`           | Query audit log                  |
-| GET    | `/api/settings/autonomy`        | List autonomy rules              |
-| POST   | `/api/settings/autonomy`        | Create autonomy rule             |
-| GET    | `/api/integrations`             | List all integration statuses    |
-| GET    | `/api/integrations/:provider`   | Get status for one provider      |
-| GET    | `/api/backup/export`            | Export all data as JSON file     |
-| GET    | `/api/backup/download`          | Download raw SQLite database     |
-| POST   | `/api/backup/restore`           | Restore from JSON backup         |
-| GET    | `/api/backup/status`            | Database size and row counts     |
-
 ## Integrations
 
 Gift Scheduler can optionally connect to external services. All integrations are configured via environment variables (set in Railway or a local `.env` file). When no keys are configured, the app uses its built-in mock catalog and message templates.
