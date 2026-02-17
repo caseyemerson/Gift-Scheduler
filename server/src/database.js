@@ -203,7 +203,6 @@ function initializeSchema(database) {
     CREATE INDEX IF NOT EXISTS idx_orders_event ON orders(event_id);
     CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity_type, entity_id);
     CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
-    CREATE INDEX IF NOT EXISTS idx_contacts_user ON contacts(user_id);
   `);
 
   // Migrations: add columns to existing contacts table
@@ -217,6 +216,10 @@ function initializeSchema(database) {
 
   // Migration: add user_id to contacts table for ownership scoping (M4)
   try { database.exec('ALTER TABLE contacts ADD COLUMN user_id TEXT REFERENCES users(id)'); } catch {}
+
+  // Create index after ensuring the column exists (must be outside the main exec block
+  // because the column may not exist in pre-existing databases until the migration above runs)
+  database.exec('CREATE INDEX IF NOT EXISTS idx_contacts_user ON contacts(user_id)');
 }
 
 function closeDb() {
