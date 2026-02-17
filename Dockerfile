@@ -30,13 +30,13 @@ COPY --from=client-build /app/client/dist ./client/dist
 RUN mkdir -p /data
 
 ENV NODE_ENV=production
-ENV PORT=3001
+ENV PORT=8080
 ENV DB_PATH=/data/gift_scheduler.db
 
-EXPOSE 3001
+EXPOSE 8080
 
-# Health check
+# Health check — use the PORT env var so it works regardless of platform config
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3001/api/health || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api/health || exit 1
 
 CMD ["node", "server/src/index.js"]
