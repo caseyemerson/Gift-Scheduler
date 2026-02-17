@@ -20,6 +20,7 @@ function requireConfirmation(req, res, next) {
 
 // All tables to include in a JSON export, in dependency order
 const EXPORT_TABLES = [
+  'users',
   'contacts',
   'events',
   'budgets',
@@ -37,6 +38,7 @@ const EXPORT_TABLES = [
 // Schema allowlist: only these columns are permitted during restore.
 // This prevents SQL injection via attacker-controlled column names.
 const ALLOWED_COLUMNS = {
+  users: ['id', 'username', 'password_hash', 'role', 'token_version', 'created_at', 'updated_at'],
   contacts: ['id', 'name', 'email', 'phone', 'relationship', 'birthday', 'anniversary', 'other_date', 'default_gifts', 'preferences', 'constraints', 'notes', 'user_id', 'created_at', 'updated_at'],
   events: ['id', 'contact_id', 'type', 'name', 'date', 'recurring', 'lead_time_days', 'status', 'created_at', 'updated_at'],
   budgets: ['id', 'category', 'default_amount', 'created_at', 'updated_at'],
@@ -67,6 +69,7 @@ const COLUMN_TYPES = {
   selected: 'number',
   read: 'number',
   enabled: 'number',
+  token_version: 'number',
 };
 
 // Validate a row value against expected types
@@ -156,64 +159,62 @@ router.post('/restore', requireAdmin, requireConfirmation, async (req, res) => {
   // Restore tables in dependency order: clear children first, then parents
   const clearOrder = [...EXPORT_TABLES].reverse();
 
+  // Temporarily disable foreign keys for the restore
+  db.pragma('foreign_keys = OFF');
+
   const restoreTransaction = db.transaction(() => {
-    // Temporarily disable foreign keys for the restore
-    db.pragma('foreign_keys = OFF');
-
-    try {
-      // Clear all tables in reverse dependency order (skip protected tables)
-      for (const table of clearOrder) {
-        if (RESTORE_PROTECTED_TABLES.has(table)) continue;
-        db.prepare(`DELETE FROM ${table}`).run();
-      }
-
-      // Insert data in forward dependency order
-      let totalRows = 0;
-      let typeErrors = [];
-      for (const table of EXPORT_TABLES) {
-        const rows = data.tables[table];
-        if (!rows || rows.length === 0) continue;
-
-        const allowedCols = ALLOWED_COLUMNS[table];
-        if (!allowedCols) continue; // skip unknown tables
-
-        // Filter column names to only those in the allowlist
-        const rawColumns = Object.keys(rows[0]);
-        const columns = rawColumns.filter(col => allowedCols.includes(col));
-
-        if (columns.length === 0) continue;
-
-        const placeholders = columns.map(() => '?').join(', ');
-        // Use INSERT OR IGNORE for protected tables to preserve existing records
-        const insertCmd = RESTORE_PROTECTED_TABLES.has(table) ? 'INSERT OR IGNORE' : 'INSERT';
-        const stmt = db.prepare(`${insertCmd} INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`);
-
-        for (const row of rows) {
-          // Validate value types (L10)
-          let hasTypeError = false;
-          for (const col of columns) {
-            if (!validateRowValue(col, row[col])) {
-              typeErrors.push({ table, column: col, expected: COLUMN_TYPES[col], got: typeof row[col] });
-              hasTypeError = true;
-              break;
-            }
-          }
-          if (hasTypeError) continue; // skip rows with type errors
-
-          stmt.run(...columns.map(col => row[col] !== undefined ? row[col] : null));
-          totalRows++;
-        }
-      }
-
-      return { totalRows, typeErrors };
-    } finally {
-      // Re-enable foreign keys even if an error occurs
-      db.pragma('foreign_keys = ON');
+    // Clear all tables in reverse dependency order (skip protected tables)
+    for (const table of clearOrder) {
+      if (RESTORE_PROTECTED_TABLES.has(table)) continue;
+      db.prepare(`DELETE FROM ${table}`).run();
     }
+
+    // Insert data in forward dependency order
+    let totalRows = 0;
+    let typeErrors = [];
+    for (const table of EXPORT_TABLES) {
+      const rows = data.tables[table];
+      if (!rows || rows.length === 0) continue;
+
+      const allowedCols = ALLOWED_COLUMNS[table];
+      if (!allowedCols) continue; // skip unknown tables
+
+      // Filter column names to only those in the allowlist
+      const rawColumns = Object.keys(rows[0]);
+      const columns = rawColumns.filter(col => allowedCols.includes(col));
+
+      if (columns.length === 0) continue;
+
+      const placeholders = columns.map(() => '?').join(', ');
+      // Use INSERT OR IGNORE for protected tables to preserve existing records
+      const insertCmd = RESTORE_PROTECTED_TABLES.has(table) ? 'INSERT OR IGNORE' : 'INSERT';
+      const stmt = db.prepare(`${insertCmd} INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`);
+
+      for (const row of rows) {
+        // Validate value types (L10)
+        let hasTypeError = false;
+        for (const col of columns) {
+          if (!validateRowValue(col, row[col])) {
+            typeErrors.push({ table, column: col, expected: COLUMN_TYPES[col], got: typeof row[col] });
+            hasTypeError = true;
+            break;
+          }
+        }
+        if (hasTypeError) continue; // skip rows with type errors
+
+        stmt.run(...columns.map(col => row[col] !== undefined ? row[col] : null));
+        totalRows++;
+      }
+    }
+
+    return { totalRows, typeErrors };
   });
 
   try {
     const { totalRows, typeErrors } = restoreTransaction();
+
+    // Re-enable foreign keys after successful restore
+    db.pragma('foreign_keys = ON');
 
     logAudit('restore_backup', 'system', null, {
       source_exported_at: data.exported_at,
@@ -247,6 +248,8 @@ router.post('/restore', requireAdmin, requireConfirmation, async (req, res) => {
 
     res.json(response);
   } catch (err) {
+    // Re-enable foreign keys even if restore failed
+    db.pragma('foreign_keys = ON');
     console.error('Restore failed:', err);
     res.status(500).json({ error: 'Restore failed. Check server logs for details.' });
   }
